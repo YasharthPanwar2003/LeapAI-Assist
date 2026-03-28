@@ -1,0 +1,36 @@
+
+#Core Orchestration
+textual
+pyyaml
+requests
+aiohttp
+
+#RAG Backends
+qdrant-client
+chromadb
+
+#Ingestion Pipeline
+crawl4ai
+feedparser
+html2text
+
+#Embeddings (Vector RAG only)
+sentence-transformers
+
+#Testing
+pytest
+pytest-asyncio
+pytest-cov
+
+#Code Quality
+pre-commit
+ruff
+mypy
+
+#Utilities
+rich
+python-dotenv
+
+# To install all dependencies  ----> uv pip install -r requirements.txt
+
+# Verify installation  ----> uv pip list | head -20
