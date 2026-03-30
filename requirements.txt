@@ -30,6 +30,12 @@ mypy
 rich
 python-dotenv
 
+pytest
+pytest-asyncio
+
+httpx
+
 # To install all dependencies  ----> uv pip install -r requirements.txt
 
 # Verify installation  ----> uv pip list | head -20
+ruff>=0.11.0

@@ -1,0 +1,29 @@
+# Change rag_backend: vectorless → vector — zero code changes needed.
+
+# ── RAG ───────────────────────────────────────────────────────────
+rag_backend: vectorless       # vectorless | vector
+top_k: 3
+
+# ── LLM (llama.cpp server) ────────────────────────────────────────
+llm_url: http://localhost:8080/v1
+llm_model: local
+context_size: 8192
+temperature: 0.3
+max_tokens: 512
+
+# ── Embeddings (only active when rag_backend: vector) ─────────────
+embed_url: http://localhost:8081/v1
+embed_dim: 768
+
+# ── Storage ───────────────────────────────────────────────────────
+models_dir: /var/lib/suse-ai/models
+index_dir: /var/lib/suse-ai/index
+cache_dir: /var/lib/suse-ai/cache/docs
+state_dir: /var/lib/suse-ai/state
+
+# ── Cache ─────────────────────────────────────────────────────────
+semantic_cache_enabled: true
+semantic_cache_ttl_days: 40
+
+# ── OS Integration ────────────────────────────────────────────────
+version_probe_enabled: true
