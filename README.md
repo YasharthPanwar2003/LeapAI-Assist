@@ -601,7 +601,7 @@ systemctl is-enabled cockpit.socket && echo "Cockpit enabled"
 
 ## 📊 openSUSE AI layers
 
-```markdown
+```mermaid
 flowchart TB
     subgraph "M1 Presentation"
         U1["Textual TUI<br/>~20 MB RAM"]
