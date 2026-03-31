@@ -1,0 +1,59 @@
+# =============================================================================
+# suse-ai.socket — systemd socket activation unit
+# =============================================================================
+# Socket activation: systemd listens on port 8090 and starts the service
+# ONLY when the first client connects. Saves ~200MB RAM when idle.
+#
+# === USER SESSION INSTALL (Podman / rootless) ===
+#   cp suse-ai.socket ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now suse-ai.socket
+#
+# === SYSTEM INSTALL (Docker / K8s / root) ===
+#   sudo cp suse-ai.socket /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai.socket
+#
+# === VERIFY ===
+#   ss -tlnp | grep 8090
+#   systemctl [user] status suse-ai.socket
+#
+# === TEST ===
+#   curl -s http://localhost:8090/health
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Assistant Socket Activation (port 8090)
+Documentation=https://github.com/suse/suse-ai
+
+# Only activate if the network is online
+After=network-online.target
+Wants=network-online.target
+
+[Socket]
+# Listen on TCP port 8090
+ListenStream=8090
+
+# Pass the socket file descriptor to the service (NOT Accept=yes)
+# Accept=yes spawns one service instance per connection (not desired here)
+Accept=no
+
+# TCP keepalive to detect dead connections
+NoDelay=true
+KeepAlive=true
+KeepAliveTimeSec=30
+KeepAliveIntervalSec=5
+KeepAliveProbes=3
+
+# Backlog for pending connections before systemd starts dropping
+Backlog=128
+
+# Socket options
+ReusePort=false
+DeferAcceptSec=1
+
+# SELinux label (for openSUSE with SELinux)
+# SELinuxContextFromNet=true
+
+[Install]
+WantedBy=sockets.target

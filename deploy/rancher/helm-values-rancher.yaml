@@ -1,0 +1,159 @@
+# =============================================================================
+# Helm Values for SUSE Rancher Prime
+# =============================================================================
+# This file provides example Helm values for deploying Rancher on K3s/RKE2.
+#
+# Usage:
+#   helm install rancher rancher-stable/rancher \
+#     -n cattle-system --create-namespace \
+#     -f helm-values-rancher.yaml
+#
+# Reference: https://rancher.com/docs/rancher/v2.6/en/installation/install-rancher-on-k8s/
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Rancher Hostname (REQUIRED)
+# ---------------------------------------------------------------------------
+# The fully qualified domain name for Rancher.
+# A DNS record must point this hostname to your cluster's ingress/LB IP.
+hostname: rancher.mydomain.com
+
+# ---------------------------------------------------------------------------
+# Bootstrap Password
+# ---------------------------------------------------------------------------
+# Set the initial admin password. Rancher will require a new password on first
+# login. If not set, Rancher generates a random password stored in a Secret.
+bootstrapPassword: "ChangeMeImmediately123!"
+
+# ---------------------------------------------------------------------------
+# Replicas
+# ---------------------------------------------------------------------------
+# Number of Rancher pod replicas. Use 3+ for high availability.
+replicas: 3
+
+# ---------------------------------------------------------------------------
+# TLS Configuration
+# ---------------------------------------------------------------------------
+# Options for TLS certificate management:
+#   - "rancher"     : Self-signed cert via Rancher's built-in CA (default)
+#   - "letsEncrypt" : Use Let's Encrypt for automatic certs
+#   - "secret"      : Use a pre-existing Kubernetes TLS Secret
+ingress:
+  tls:
+    source: rancher
+
+# ---------------------------------------------------------------------------
+# Let's Encrypt Configuration (only if ingress.tls.source = letsEncrypt)
+# ---------------------------------------------------------------------------
+# letsEncrypt:
+#   email: admin@mydomain.com
+#   environment: production    # or "staging" for testing
+#   ingress:
+#     class: traefik           # Use "nginx" for NGINX Ingress Controller
+
+# ---------------------------------------------------------------------------
+# Custom TLS Secret (only if ingress.tls.source = secret)
+# ---------------------------------------------------------------------------
+# tls:
+#   ingress:
+#     secretName: tls-rancher-ingress
+
+# Use your own CA (e.g., internal PKI)
+# privateCA: true
+
+# ---------------------------------------------------------------------------
+# Anti-Affinity Rules
+# ---------------------------------------------------------------------------
+# Ensure Rancher pods are spread across different nodes for HA
+antiAffinity: "required"
+
+# ---------------------------------------------------------------------------
+# Audit Log
+# ---------------------------------------------------------------------------
+# Enable audit logging for Rancher
+auditLog:
+  enabled: true
+  level: 1                     # 0=Disable, 1=Metadata, 2=Request, 3=RequestResponse
+  maxAge: 30                   # Days to retain logs
+  maxBackup: 10                # Number of old log files
+  maxSize: 100                 # Max log file size in MB
+  path: "/var/log/auditlog/rancher-api-audit.log"
+
+# ---------------------------------------------------------------------------
+# Debug Mode
+# ---------------------------------------------------------------------------
+# Set to true for troubleshooting (not for production)
+debug: false
+
+# ---------------------------------------------------------------------------
+# Rancher Image Configuration
+# ---------------------------------------------------------------------------
+# Pin Rancher image version (optional)
+# rancherImage: rancher/rancher
+# rancherImageTag: v2.10.3
+
+# ---------------------------------------------------------------------------
+# System Default Registry
+# ---------------------------------------------------------------------------
+# Use a private registry for all Rancher images (air-gapped environments)
+# systemDefaultRegistry: registry.suse.com/rancher
+
+# ---------------------------------------------------------------------------
+# Proxy Configuration
+# ---------------------------------------------------------------------------
+# If Rancher is behind a corporate proxy:
+# proxy: http://proxy.example.com:3128
+# noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
+
+# ---------------------------------------------------------------------------
+# Additional Trusted CAs
+# ---------------------------------------------------------------------------
+# Add custom CA certificates for outbound connections
+# additionalTrustedCAs: true
+# additionalTrustedCAsSecret: my-custom-ca-secret
+
+# ---------------------------------------------------------------------------
+# Helm Chart Options
+# ---------------------------------------------------------------------------
+# Disable UI branding overrides for SUSE Rancher Prime
+# rancherImagePullPolicy: IfNotPresent
+
+# ---------------------------------------------------------------------------
+# Fleet (Built-in GitOps)
+# ---------------------------------------------------------------------------
+# Fleet is included with Rancher. Configure global settings:
+# fleet:
+#   enabled: true
+
+# ---------------------------------------------------------------------------
+# Rancher Prime Specific (SUSE)
+# ---------------------------------------------------------------------------
+# SUSE Rancher Prime includes additional SUSE branding and telemetry
+# For air-gapped or telemetry-free deployments:
+# telemetry: false
+
+# ---------------------------------------------------------------------------
+# Resource Limits
+# ---------------------------------------------------------------------------
+# Recommended resource requests and limits for Rancher pods
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# ---------------------------------------------------------------------------
+# Extra Environment Variables
+# ---------------------------------------------------------------------------
+# extraEnv:
+#   - name: CATTLE_SERVER_URL
+#     value: "https://rancher.mydomain.com"
+#   - name: CATTLE_BOOTSTRAP_PASSWORD
+#     value: "ChangeMeImmediately123!"
+
+# ---------------------------------------------------------------------------
+# Priority Class
+# ---------------------------------------------------------------------------
+# priorityClassName: "system-cluster-critical"

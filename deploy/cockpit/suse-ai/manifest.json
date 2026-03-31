@@ -1,0 +1,21 @@
+{
+    "name": "suse-ai",
+    "version": "1.0.0",
+    "description": "openSUSE AI Assistant - Local SLM + RAG for system onboarding",
+    "homepage": "https://github.com/opensuse/opensuse-ai-assistant",
+    "license": "MIT",
+    "icons": {"default": "icon.svg"},
+    "scripts": ["app.js"],
+    "stylesheets": ["style.css"],
+    "nav": {
+        "id": "suse-ai",
+        "label": "AI Assistant",
+        "icon": "sparkles",
+        "group": "Tools",
+        "order": 10
+    },
+    "conditions": {"path-exists": "/var/lib/suse-ai/state/config.yaml"},
+    "requires": {"cockpit": "295"},
+    "content-security-policy": "default-src 'self'; connect-src 'self' http://localhost:8080 http://localhost:8090; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+    "bridges": [{"name": "suse-ai-bridge", "path": "/usr/share/cockpit/suse-ai/bridge.py"}]
+}

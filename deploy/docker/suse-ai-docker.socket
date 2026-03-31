@@ -1,0 +1,29 @@
+# =============================================================================
+# SUSE AI Assistant — systemd socket unit
+# Listens on port 8090 and activates the Docker Compose service on demand.
+#
+# Install:
+#   sudo cp suse-ai-docker.socket /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai-docker.socket
+#
+# Verify:
+#   sudo systemctl status suse-ai-docker.socket
+#   ss -tlnp | grep 8090
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Assistant (Docker) — Socket Activation
+Documentation=https://github.com/SUSE/suse-ai-deploy
+ConditionPathExists=/usr/bin/docker
+
+[Socket]
+ListenStream=8090
+Accept=no
+Backlog=128
+
+# Allow binding even if the socket was not cleanly shut down
+ReusePort=false
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,71 @@
+# =============================================================================
+# suse-ai-welcome.desktop — Desktop entry for openSUSE Welcome Launcher
+# =============================================================================
+# This file adds an "SUSE AI Assistant" page to the openSUSE Welcome screen
+# that appears on first boot (and after major updates) on Leap 16.
+#
+# The opensuse-welcome-launcher (Leap 16) replaces the legacy Qt5-based
+# opensuse-welcome. It detects the desktop environment (GNOME or KDE) and
+# launches either gnome-tour or plasma-welcome with custom content.
+#
+# INSTALLATION (for Leap 16 with opensuse-welcome-launcher):
+#   sudo cp suse-ai-welcome.desktop /etc/xdg/autostart/
+#   OR include in your custom ISO image
+#
+# INSTALLATION (for Leap 15.x with legacy opensuse-welcome):
+#   sudo cp suse-ai-welcome.desktop /usr/share/applications/
+#   sudo cp suse-ai-welcome.json /usr/share/opensuse-welcome/
+#
+# For JeOS (minimal install, no desktop):
+#   Use deploy/jeos-firstboot/04_ai_assistant.sh instead (text-based)
+#
+# REFERENCE:
+#   https://susedoc.github.io/release-notes/leap-16.0/html/release-notes
+#   Section 2.4: "Changes to the openSUSE Welcome"
+#   https://github.com/openSUSE/openSUSE-welcome
+#   https://news.opensuse.org/2025/08/21/os-welcome-makeover
+#
+# HOW IT WORKS ON LEAP 16:
+#   1. opensuse-welcome-launcher starts on first login
+#   2. It detects GNOME → launches gnome-tour, KDE → launches plasma-welcome
+#   3. gnome-tour/plasma-welcome reads .desktop files from specific directories
+#   4. This .desktop file provides a page about SUSE AI Assistant
+#   5. User can click to open the AI assistant or skip
+#
+# HOW IT WORKS ON LEAP 15.x:
+#   1. opensuse-welcome (Qt5) starts on first login
+#   2. It reads pages from /usr/share/opensuse-welcome/*.json
+#   3. This .desktop file triggers the installer/configurator
+#
+# =============================================================================
+
+[Desktop Entry]
+Type=Application
+Name=SUSE AI Assistant
+Comment=Your local AI-powered system assistant for openSUSE
+# Categories for desktop menu
+Categories=System;PackageManager;GTK;
+# Only show in GNOME and KDE (not in other DEs)
+OnlyShowIn=GNOME;KDE;
+# Do NOT show in X-Cinnamon, MATE, XFCE (not supported yet)
+NotShowIn=X-Cinnamon;MATE;XFCE;
+
+# Icon — use the Chameleon/geeko icon or bundled icon
+Icon=geeko
+
+# The command to run when user clicks "Get Started" in the welcome screen
+Exec=/usr/bin/suse-ai-welcome-setup
+
+# Run after desktop is fully loaded
+AutostartCondition=GNOME /desktop/gnome/session/running
+
+# Do not show in the main application menu (only in welcome)
+NoDisplay=true
+
+# Startup notification
+StartupNotify=true
+
+# Run once (remove after first run — the launcher handles this)
+# On Leap 16, the launcher manages when greeters appear
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel

@@ -1,0 +1,135 @@
+# =============================================================================
+# SUSE AI — Podman Compose Configuration
+# =============================================================================
+# Usage: podman compose up -d
+#        podman compose logs -f
+#        podman compose down
+#
+# NOTE: Use "podman compose" (built-in to Podman 4.x+).
+#       Do NOT use "docker-compose" or "podman-compose".
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # LLM Service — Ollama or vLLM inference engine
+  # ---------------------------------------------------------------------------
+  llm:
+    image: docker.io/ollama/ollama:latest
+    # No container_name — let Podman generate predictable names
+    # Better compatibility with podman compose scaling
+    volumes:
+      - llm-models:/root/.ollama:z
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: "4"
+        reservations:
+          memory: 4G
+          cpus: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Application Service — SUSE AI backend
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/podman/Containerfile
+    # No container_name — better podman compose compatibility
+    ports:
+      - "8090:8090"
+    volumes:
+      - app-data:/data:z
+      - app-config:/app/config:z
+      - ./logs:/app/logs:z
+    environment:
+      - PODMAN_USERNS=keep-id
+      - LLM_BASE_URL=http://llm:11434
+      - EMBED_BASE_URL=http://embed:11435
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8090
+      - LOG_LEVEL=info
+    depends_on:
+      llm:
+        condition: service_healthy
+      embed:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: "2"
+        reservations:
+          memory: 1G
+          cpus: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Embedding Service — Optional embedding model endpoint
+  # ---------------------------------------------------------------------------
+  embed:
+    image: docker.io/ollama/ollama:latest
+    # No container_name — better podman compose compatibility
+    profiles:
+      - embeddings  # Only start with: podman compose --profile embeddings up -d
+    volumes:
+      - embed-models:/root/.ollama:z
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2"
+        reservations:
+          memory: 2G
+          cpus: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 3
+    restart: unless-stopped
+
+# =============================================================================
+# Volumes — persistent data storage
+# =============================================================================
+volumes:
+  llm-models:
+    driver: local
+  app-data:
+    driver: local
+  app-config:
+    driver: local
+  embed-models:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    driver: bridge

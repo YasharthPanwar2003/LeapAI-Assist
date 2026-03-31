@@ -1,0 +1,196 @@
+# =============================================================================
+# RKE2 Server Configuration — openSUSE Leap 16
+# =============================================================================
+# This is an example RKE2 configuration file with CIS benchmark hardening.
+# Place at: /etc/rancher/rke2/config.yaml
+#
+# Usage:
+#   sudo zypper install rke2-server
+#   sudo mkdir -p /etc/rancher/rke2/
+#   sudo cp rke2-config.yaml /etc/rancher/rke2/config.yaml
+#   sudo systemctl enable --now rke2-server
+#
+# Reference: https://docs.rke2.io/install/install_options/linux/
+# CIS Profile: https://docs.rke2.io/security/cis_hardening_guide
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Cluster Identity
+# ---------------------------------------------------------------------------
+
+# Token used for nodes to join the cluster
+# Generate a secure token: head -c 32 /dev/urandom | base64 | tr -d '=/+' | head -c 32
+token: "CHANGE_ME_TO_A_SECURE_RANDOM_TOKEN"
+
+# Cluster name (displayed in Rancher UI)
+# cluster-name: "leap16-prod"
+
+# ---------------------------------------------------------------------------
+# CIS Benchmark Hardening Profile
+# ---------------------------------------------------------------------------
+
+# Enable CIS 1.8 (or cis-1.9 if available) hardening profile
+# This applies security defaults to kube-apiserver, kubelet, etcd, and more
+profile: "cis-1.8"
+
+# Protect kernel defaults (sysctl tuning for security)
+protect-kernel-defaults: true
+
+# ---------------------------------------------------------------------------
+# Embedded etcd Configuration
+# ---------------------------------------------------------------------------
+
+# Expose etcd metrics for monitoring
+etcd-expose-metrics: true
+
+# etcd snapshot settings (automatic backups)
+# Uncomment to enable automatic snapshots
+# etcd-snapshot-schedule-cron: "0 */6 * * *"
+# etcd-snapshot-retention: 7
+# etcd-snapshot-dir: "/var/lib/rancher/rke2/server/db/snapshots"
+
+# ---------------------------------------------------------------------------
+# Container Network Interface (CNI)
+# ---------------------------------------------------------------------------
+
+# Canal (Calico + Flannel) — recommended for production
+# Provides network policies + overlay networking
+cni: canal
+
+# Alternative CNIs:
+# cni: calico       # Calico only (BGP mode, advanced)
+# cni: cilium       # Cilium (eBPF-based, for advanced use cases)
+# cni: flannel      # Flannel only (simple overlay)
+
+# ---------------------------------------------------------------------------
+# Kubernetes API Server
+# ---------------------------------------------------------------------------
+
+# Write kubeconfig for local access
+write-kubeconfig-mode: "0644"
+
+# Disable anonymous authentication
+kube-apiserver-arg:
+  - "anonymous-auth=false"
+  - "enable-admission-plugins=NodeRestriction,PodSecurityPolicy,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota"
+  - "profiling=false"
+  - "audit-log-path=/var/lib/rancher/rke2/server/logs/audit.log"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"
+  - "request-timeout=300s"
+  - "service-account-lookup=true"
+
+# ---------------------------------------------------------------------------
+# Kubelet Configuration
+# ---------------------------------------------------------------------------
+
+kubelet-arg:
+  - "event-qps=0"
+  - "streaming-connection-idle-timeout=5m"
+  - "protect-kernel-defaults=true"
+  - "make-iptables-util-chains=true"
+  - "hostname-override=$(hostname)"
+
+# ---------------------------------------------------------------------------
+# Kube-Controller-Manager
+# ---------------------------------------------------------------------------
+
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold=50"
+  - "use-service-account-credentials=true"
+
+# ---------------------------------------------------------------------------
+# Kube-Scheduler
+# ---------------------------------------------------------------------------
+
+kube-scheduler-arg:
+  - "profiling=false"
+
+# ---------------------------------------------------------------------------
+# etcd Arguments (CIS hardening)
+# ---------------------------------------------------------------------------
+
+etcd-arg:
+  - "auto-compaction-retention=8"
+  - "snapshot-count=10000"
+  - "heartbeat-interval=500"
+  - "election-timeout=5000"
+
+# ---------------------------------------------------------------------------
+# Audit Logging
+# ---------------------------------------------------------------------------
+
+audit-log-file: /var/lib/rancher/rke2/server/logs/audit.log
+audit-log-maxage: 30
+audit-log-maxbackup: 10
+audit-log-maxsize: 100
+
+# ---------------------------------------------------------------------------
+# Disabled Components
+# ---------------------------------------------------------------------------
+
+# Disable components you don't need
+disable:
+  - rke2-ingress-nginx    # Use your own ingress controller (e.g., Traefik)
+  # - rke2-traefik          # Uncomment to disable Traefik
+  # - rke2-snapshot-controller  # Uncomment if not using etcd snapshots
+
+# ---------------------------------------------------------------------------
+# Container Runtime
+# ---------------------------------------------------------------------------
+# RKE2 uses containerd exclusively. No Docker/Moby support.
+# Containerd is embedded in the RKE2 binary.
+#
+# Custom containerd config:
+# containerd-config: /etc/rancher/rke2/containerd-config.toml
+
+# ---------------------------------------------------------------------------
+# Node Labels and Taints
+# ---------------------------------------------------------------------------
+
+# Example: label control plane nodes
+# node-label:
+#   - "node-role.kubernetes.io/control-plane=true"
+#   - "node.kubernetes.io/os=linux"
+
+# Example: taint control plane nodes (no workloads on masters)
+# node-taint:
+#   - "node-role.kubernetes.io/control-plane:NoSchedule"
+
+# ---------------------------------------------------------------------------
+# Cloud Provider
+# ---------------------------------------------------------------------------
+
+# For cloud environments, uncomment the appropriate provider:
+# cloud-provider-name: "aws"
+# cloud-provider-name: "azure"
+# cloud-provider-name: "external"   # For external CCM/CSI
+
+# ---------------------------------------------------------------------------
+# TLS / Certificates
+# ---------------------------------------------------------------------------
+
+# Generate self-signed certificates (default)
+# For production, use certificates signed by your internal CA or Let's Encrypt
+# tls-san:
+#   - "rancher.mydomain.com"
+#   - "192.168.1.100"
+#   - "10.0.0.1"
+
+# ---------------------------------------------------------------------------
+# Private Registry (if using SUSE Registry or Air-Gapped)
+# ---------------------------------------------------------------------------
+
+# private-registry: /etc/rancher/rke2/registries.yaml
+
+# Example registries.yaml:
+# mirrors:
+#   registry.suse.com:
+#     endpoint:
+#       - "https://registry.suse.com"
+# configs:
+#   "registry.suse.com":
+#     auth:
+#       username: "REGISTRY_USER"
+#       password: "REGISTRY_PASSWORD"

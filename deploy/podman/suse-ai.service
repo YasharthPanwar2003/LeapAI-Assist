@@ -1,0 +1,99 @@
+# =============================================================================
+# suse-ai.service — systemd service unit for SUSE AI application (Podman)
+# =============================================================================
+# Install:  cp suse-ai.service ~/.config/systemd/user/
+# Reload:   systemctl --user daemon-reload
+# Start:    systemctl --user start suse-ai
+# Enable:   systemctl --user enable suse-ai
+# Logs:     journalctl --user -u suse-ai -f
+#
+# BUG FIXES APPLIED:
+#   - Type=simple (NOT notify — Podman has no sd_notify support)
+#   - No User= directive (this is a --user session unit, runs as invoking user)
+#   - No Wants=podman.service (Podman is DAEMONLESS, no such service exists)
+#   - Environment=PODMAN_USERNS=keep-id (proper rootless UID mapping)
+#   - Proper ExecStop/ExecStopPost for clean container removal
+#
+# NOTE: Podman is daemonless. There is no podman.service.
+#       This service directly manages the container lifecycle.
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Application Container
+Documentation=https://github.com/suse/suse-ai
+After=network-online.target
+Wants=network-online.target
+# Do NOT add: Wants=podman.service (does not exist — daemonless)
+# Do NOT add: BindsTo=podman.service (does not exist — daemonless)
+
+[Service]
+# CRITICAL: Use Type=simple — Podman does NOT support sd_notify()
+# Using Type=notify will cause the service to timeout and fail
+Type=simple
+
+# Do NOT set User= — this is a user session unit (--user).
+# User session units already run as the invoking user.
+# Setting User= here would be redundant and could cause permission issues.
+
+# Environment for rootless Podman
+Environment=PODMAN_USERNS=keep-id
+Environment=PODMAN_HOME=%h
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=CONTAINERS_REGISTRIES_CONF=%h/.config/containers/registries.conf
+
+# ExecStart — run the container
+ExecStart=/usr/bin/podman run \
+    --rm \
+    --name suse-ai \
+    --userns=keep-id \
+    --hostname suse-ai \
+    -p 8090:8090 \
+    -v /var/lib/suse-ai:/data:rw,z \
+    -v /var/lib/suse-ai/config:/app/config:ro,z \
+    -e PODMAN_USERNS=keep-id \
+    -e LLM_BASE_URL=http://llm:11434 \
+    -e EMBED_BASE_URL=http://embed:11435 \
+    --healthcheck-command "curl -sf http://localhost:8090/health || exit 1" \
+    --healthcheck-interval 30s \
+    --healthcheck-timeout 10s \
+    --healthcheck-start-period 60s \
+    --healthcheck-retries 3 \
+    --memory=3g \
+    --cpus=2 \
+    --restart-policy on-failure \
+    --security-opt no-new-privileges:true \
+    localhost/suse-ai:latest
+
+# ExecStop — graceful shutdown
+ExecStop=/usr/bin/podman stop --time=30 suse-ai
+
+# ExecStopPost — clean up container after stop
+ExecStopPost=/usr/bin/podman rm suse-ai 2>/dev/null || true
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Timeouts
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Resource limits (additional systemd-level control)
+MemoryMax=4G
+CPUQuota=200%
+
+# Security hardening
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/suse-ai
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=suse-ai
+
+[Install]
+WantedBy=default.target

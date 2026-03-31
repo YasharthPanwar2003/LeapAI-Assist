@@ -1,0 +1,143 @@
+# =============================================================================
+# suse-ai.service — systemd service unit for SUSE AI Assistant
+# =============================================================================
+# This is the STANDALONE version (runtime-agnostic).
+# For Podman-specific: see deploy/podman/suse-ai.service
+# For Docker-specific:  see deploy/docker/suse-ai-docker.service
+#
+# === USER SESSION INSTALL (Podman / rootless) ===
+#   cp suse-ai.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now suse-ai.service
+#   journalctl --user -u suse-ai -f
+#
+# === SYSTEM INSTALL (Docker / root) ===
+#   sudo cp suse-ai.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai.service
+#   journalctl -u suse-ai -f
+#
+# === STATUS / RESTART / STOP ===
+#   systemctl [user] status suse-ai
+#   systemctl [user] restart suse-ai
+#   systemctl [user] stop suse-ai
+#
+# === DEBUG ===
+#   systemctl [user] show suse-ai
+#   systemd-analyze verify suse-ai.service
+#
+# =============================================================================
+# BUG FIXES APPLIED (from original code review):
+#   - Type=simple (NOT notify — Podman has no sd_notify support)
+#   - No User= directive in user session units (runs as invoking user)
+#   - No Wants=podman.service (Podman is DAEMONLESS — no such service exists)
+#   - No BindsTo=podman.service (same reason)
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Assistant Application
+Documentation=https://github.com/suse/suse-ai
+
+# Start after network is fully online (DNS resolution available)
+After=network-online.target
+Wants=network-online.target
+
+# For Docker installs: require docker.service
+# Uncomment the next two lines ONLY if using Docker (NOT Podman):
+# After=docker.service
+# Requires=docker.service
+
+# Do NOT add: Wants=podman.service (Podman is daemonless — no such service)
+# Do NOT add: BindsTo=podman.service (Podman is daemonless — no such service)
+
+[Service]
+# CRITICAL: Type=simple
+# - Podman does NOT support sd_notify() → Type=notify will HANG
+# - Docker Compose supports sd_notify → Type=notify is OK for Docker
+# - This file uses Type=simple for maximum compatibility
+Type=simple
+
+# Do NOT set User= in --user session units.
+# User session units already run as the invoking user.
+# For system units, set User=suseai or remove to run as root.
+
+# Environment
+EnvironmentFile=-/etc/suse-ai/env
+EnvironmentFile=-%h/.config/suse-ai/env
+Environment=PODMAN_USERNS=keep-id
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=HOME=%h
+
+# Working directory
+WorkingDirectory=/opt/suse-ai
+
+# ExecStart — container runtime command
+# Override this in a drop-in file or use the runtime-specific service:
+#   Podman: deploy/podman/suse-ai.service
+#   Docker: deploy/docker/suse-ai-docker.service
+ExecStart=/usr/bin/podman run \
+    --rm \
+    --name suse-ai \
+    --userns=keep-id \
+    --hostname suse-ai \
+    -p 8090:8090 \
+    -v /var/lib/suse-ai:/data:rw,z \
+    -v /var/lib/suse-ai/config:/app/config:ro,z \
+    -v /var/lib/suse-ai/models:/models:ro,z \
+    -e PODMAN_USERNS=keep-id \
+    -e LLM_BASE_URL=http://llm:11434 \
+    -e EMBED_BASE_URL=http://embed:11435 \
+    -e LOG_LEVEL=info \
+    --healthcheck-command "curl -sf http://localhost:8090/health || exit 1" \
+    --healthcheck-interval 30s \
+    --healthcheck-timeout 10s \
+    --healthcheck-start-period 60s \
+    --healthcheck-retries 3 \
+    --memory=3g \
+    --cpus=2 \
+    --restart-policy on-failure \
+    --security-opt no-new-privileges:true \
+    --log-driver=journald \
+    localhost/suse-ai:latest
+
+# ExecStop — graceful shutdown with 30-second timeout
+ExecStop=/usr/bin/podman stop --time=30 suse-ai
+
+# ExecStopPost — clean up container after stop
+ExecStopPost=/usr/bin/podman rm -f suse-ai 2>/dev/null || true
+
+# ExecReload — restart the container (applies new image)
+ExecReload=/usr/bin/podman stop --time=10 suse-ai
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Timeouts
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+# Resource limits (systemd-level, on top of container limits)
+MemoryMax=4G
+CPUQuota=200%
+
+# Security hardening
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/suse-ai /opt/suse-ai
+
+# File descriptors
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=suse-ai
+
+[Install]
+WantedBy=default.target

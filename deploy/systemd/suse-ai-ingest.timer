@@ -1,0 +1,58 @@
+# =============================================================================
+# suse-ai-ingest.timer — systemd timer for nightly document re-indexing
+# =============================================================================
+# Triggers suse-ai-ingest.service at 03:00 AM daily.
+# Persistent=true catches up missed runs (e.g., system was powered off).
+#
+# === USER SESSION INSTALL ===
+#   cp suse-ai-ingest.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now suse-ai-ingest.timer
+#
+# === SYSTEM INSTALL ===
+#   sudo cp suse-ai-ingest.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai-ingest.timer
+#
+# === LIST ALL TIMERS ===
+#   systemctl --user list-timers --all
+#   systemctl list-timers --all
+#
+# === CHECK SPECIFIC TIMER ===
+#   systemctl --user status suse-ai-ingest.timer
+#   systemctl --user show suse-ai-ingest.timer
+#
+# === TEMPORARILY DISABLE ===
+#   systemctl --user stop suse-ai-ingest.timer
+#
+# === TRIGGER MANUALLY (bypass timer) ===
+#   systemctl --user start suse-ai-ingest
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Nightly Document Ingestion Timer
+Documentation=https://github.com/suse/suse-ai
+
+# Wait for network before triggering
+After=network-online.target
+
+[Timer]
+# Run daily at 03:00 AM
+OnCalendar=*-*-* 03:00:00
+
+# Catch up missed timer events
+# If the system was off at 03:00, the service runs once at next boot
+Persistent=true
+
+# Randomize start time by up to 5 minutes to avoid thundering herd
+# (useful when multiple SUSE AI instances run on different machines)
+RandomizedDelaySec=300
+
+# Accuracy: service may start up to 1 minute late (default behavior)
+AccuracySec=1m
+
+# Wake the system from suspend to run (laptop/notebook deployments)
+# WakeSystem=false
+
+[Install]
+WantedBy=timers.target

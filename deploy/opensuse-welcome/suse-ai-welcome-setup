@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+# =============================================================================
+# suse-ai-welcome-setup — First-boot configurator for SUSE AI Assistant
+# =============================================================================
+# Called from the opensuse-welcome-launcher (Leap 16) or opensuse-welcome (15.x).
+# Shows a simple dialog asking the user if they want to enable the AI assistant.
+#
+# LEAP 16 PATH:
+#   opensuse-welcome-launcher → gnome-tour/plasma-welcome → this script
+#
+# LEAP 15.x PATH:
+#   opensuse-welcome → this script (via .desktop file)
+#
+# JEOS PATH:
+#   jeos-firstboot → 04_ai_assistant.sh (text-based dialog, separate file)
+#
+# Installation:
+#   sudo cp suse-ai-welcome-setup /usr/bin/
+#   sudo chmod +x /usr/bin/suse-ai-welcome-setup
+#   sudo cp suse-ai-welcome.desktop /etc/xdg/autostart/
+# =============================================================================
+
+import os
+import sys
+import subprocess
+import json
+import shutil
+from pathlib import Path
+
+# Configuration
+HOME = Path.home()
+CONFIG_DIR = HOME / ".config" / "suse-ai"
+SYSTEMD_USER_DIR = HOME / ".config" / "systemd" / "user"
+STATE_FILE = CONFIG_DIR / "welcome-completed"
+DEPLOY_DIR = Path("/opt/suse-ai-deploy")
+PODMAN = "/usr/bin/podman"
+PYTHON3 = "/usr/bin/python3.13"
+
+def check_dependencies():
+    """Check if required tools are available."""
+    missing = []
+    for cmd, name in [(PODMAN, "podman"), ("zypper", "zypper")]:
+        if not shutil.which(cmd):
+            missing.append(name)
+    return missing
+
+def detect_desktop():
+    """Detect which desktop environment is running."""
+    xdg_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    gnome = os.environ.get("GNOME_DESKTOP_SESSION_ID", "")
+    kde = os.environ.get("KDE_SESSION_VERSION", "")
+
+    if "GNOME" in xdg_desktop or gnome:
+        return "gnome"
+    elif "KDE" in xdg_desktop or kde:
+        return "kde"
+    else:
+        return "other"
+
+def detect_leap_version():
+    """Detect openSUSE Leap version from /etc/os-release."""
+    os_release = Path("/etc/os-release")
+    if os_release.exists():
+        for line in os_release.read_text().splitlines():
+            if line.startswith("VERSION_ID="):
+                return line.split("=")[1].strip().replace('"', "")
+    return "unknown"
+
+def show_gnome_dialog(title, message, yes_label="Install", no_label="Skip"):
+    """Show a GTK dialog for GNOME."""
+    try:
+        result = subprocess.run(
+            [
+                "zenity", "--question",
+                f"--title={title}",
+                f"--text={message}",
+                f"--ok-label={yes_label}",
+                f"--cancel-label={no_label}",
+                "--width=500",
+                "--height=300",
+            ],
+            capture_output=True, text=True
+        )
+        return result.returncode == 0  # 0 = Yes, 1 = No
+    except FileNotFoundError:
+        # Fallback to terminal prompt
+        print(f"\n{title}\n{message}")
+        return input(f"[Y/n] ").strip().lower() != "n"
+
+def show_kde_dialog(title, message, yes_label="Install", no_label="Skip"):
+    """Show a KDialog for KDE Plasma."""
+    try:
+        result = subprocess.run(
+            [
+                "kdialog", "--yesno", message,
+                f"--title={title}",
+                f"--yes-label={yes_label}",
+                f"--no-label={no_label}",
+            ],
+            capture_output=True, text=True
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return show_gnome_dialog(title, message, yes_label, no_label)
+
+def show_dialog(title, message, yes_label="Install", no_label="Skip"):
+    """Show the appropriate dialog based on desktop environment."""
+    desktop = detect_desktop()
+    if desktop == "kde":
+        return show_kde_dialog(title, message, yes_label, no_label)
+    else:
+        return show_gnome_dialog(title, message, yes_label, no_label)
+
+def install_podman():
+    """Install Podman via zypper."""
+    print("Installing Podman...")
+    subprocess.run(["sudo", "zypper", "install", "-y", "podman", "buildah"], check=True)
+
+def install_python313():
+    """Install Python 3.13 via zypper."""
+    print("Installing Python 3.13...")
+    subprocess.run(["sudo", "zypper", "install", "-y", "python313", "python313-pip", "python313-devel"], check=True)
+
+def install_uv():
+    """Install uv package manager."""
+    if shutil.which("uv"):
+        print("uv already installed")
+        return
+    print("Installing uv...")
+    result = subprocess.run(
+        ["curl", "-LsSf", "https://astral.sh/uv/install.sh"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print("Warning: uv installation may have failed")
+
+def create_directories():
+    """Create application data directories."""
+    dirs = [
+        "/var/lib/suse-ai/models",
+        "/var/lib/suse-ai/index",
+        "/var/lib/suse-ai/cache/docs",
+        "/var/lib/suse-ai/state",
+        "/var/lib/suse-ai/logs",
+    ]
+    for d in dirs:
+        subprocess.run(["sudo", "mkdir", "-p", d], check=True)
+    # Set ownership
+    user = os.environ.get("USER", "root")
+    subprocess.run(["sudo", "chown", "-R", f"{user}:{user}", "/var/lib/suse-ai"], check=True)
+
+def install_systemd_units():
+    """Copy and enable systemd user units."""
+    src_dir = DEPLOY_DIR / "deploy" / "systemd"
+    if not src_dir.exists():
+        print(f"Warning: {src_dir} not found, skipping systemd setup")
+        return
+
+    SYSTEMD_USER_DIR.mkdir(parents=True, exist_ok=True)
+
+    units = [
+        "suse-ai.socket",
+        "suse-ai.service",
+        "suse-ai-ingest.service",
+        "suse-ai-ingest.timer",
+    ]
+    for unit in units:
+        src = src_dir / unit
+        if src.exists():
+            shutil.copy2(src, SYSTEMD_USER_DIR / unit)
+            print(f"  Installed: {SYSTEMD_USER_DIR / unit}")
+
+    # Copy environment file
+    env_src = src_dir / "suse-ai.env"
+    env_dir = HOME / ".config" / "suse-ai"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    if env_src.exists():
+        shutil.copy2(env_src, env_dir / "env")
+        print(f"  Installed: {env_dir / 'env'}")
+
+    # Reload systemd
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+
+    # Enable socket activation
+    subprocess.run(["systemctl", "--user", "enable", "suse-ai.socket"], check=True)
+    print("  Enabled: suse-ai.socket (lazy start on port 8090)")
+
+    # Enable ingest timer
+    subprocess.run(["systemctl", "--user", "enable", "suse-ai-ingest.timer"], check=True)
+    print("  Enabled: suse-ai-ingest.timer (nightly re-indexing)")
+
+def build_container():
+    """Build the container image with Podman."""
+    containerfile = DEPLOY_DIR / "deploy" / "podman" / "Containerfile"
+    if not containerfile.exists():
+        containerfile = DEPLOY_DIR / "Containerfile"
+    if not containerfile.exists():
+        print(f"Warning: No Containerfile found, skipping build")
+        return
+
+    print("Building container image (this may take a few minutes)...")
+    result = subprocess.run(
+        ["podman", "build", "-t", "localhost/suse-ai:latest",
+         "-f", str(containerfile), str(DEPLOY_DIR)],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"Build failed: {result.stderr}")
+    else:
+        print("Container image built successfully")
+
+def mark_completed():
+    """Mark the welcome setup as completed."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.touch()
+    # Disable the autostart entry
+    autostart = Path("/etc/xdg/autostart/suse-ai-welcome.desktop")
+    if autostart.exists():
+        subprocess.run(["sudo", "rm", "-f", str(autostart)], check=False)
+
+def show_success():
+    """Show success notification."""
+    desktop = detect_desktop()
+    msg = "SUSE AI Assistant is installed! Open http://localhost:8090 to start chatting."
+    if desktop == "kde":
+        subprocess.run(["notify-send", "SUSE AI Assistant", msg], check=False)
+    else:
+        subprocess.run(["notify-send", "SUSE AI Assistant", msg], check=False)
+        # Also try zenity info dialog
+        try:
+            subprocess.run([
+                "zenity", "--info",
+                "--title=SUSE AI Assistant",
+                f"--text={msg}",
+                "--width=400",
+            ], check=False)
+        except FileNotFoundError:
+            pass
+
+def main():
+    """Main entry point."""
+    leap_ver = detect_leap_version()
+    desktop = detect_desktop()
+
+    # If already completed, exit silently
+    if STATE_FILE.exists():
+        sys.exit(0)
+
+    print(f"SUSE AI Assistant Setup")
+    print(f"  openSUSE Leap {leap_ver} | Desktop: {desktop}")
+
+    # Check dependencies
+    missing = check_dependencies()
+
+    # Show welcome dialog
+    title = "🦎 SUSE AI Assistant"
+    message = (
+        "Welcome to openSUSE! Would you like to enable the SUSE AI Assistant?\n\n"
+        "The AI Assistant runs locally on your machine and provides:\n"
+        "• Interactive guidance for openSUSE system tasks\n"
+        "• Command explanations and troubleshooting\n"
+        "• Documentation search powered by RAG\n\n"
+        "Requirements:\n"
+        "• Podman (container runtime, ~50 MB)\n"
+        "• Python 3.13 (~30 MB)\n"
+        "• AI model (~2-4 GB, downloaded once)\n"
+        "• 4+ GB RAM recommended\n\n"
+        "You can always install it later from the terminal."
+    )
+
+    yes = show_dialog(title, message, yes_label="Enable AI Assistant", no_label="Not Now")
+    if not yes:
+        print("User declined. Exiting.")
+        sys.exit(0)
+
+    print("Setting up SUSE AI Assistant...")
+
+    # Step 1: Install dependencies
+    if "podman" in missing:
+        install_podman()
+    if "zypper" not in missing:
+        install_python313()
+        install_uv()
+
+    # Step 2: Create directories
+    create_directories()
+
+    # Step 3: Install systemd units
+    install_systemd_units()
+
+    # Step 4: Build container image
+    build_container()
+
+    # Step 5: Mark completed
+    mark_completed()
+
+    # Step 6: Show success
+    show_success()
+
+    print("\n✅ SUSE AI Assistant is ready!")
+    print("   Open http://localhost:8090 (first connection starts the service)")
+    print("   Or run: podman compose -f /opt/suse-ai-deploy/deploy/podman/compose.yaml up -d")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-assistant-sa
+  namespace: ai-assistant
+  labels:
+    app.kubernetes.io/name: ai-assistant
+    app.kubernetes.io/component: rbac
+    app: ai-assistant
+  annotations:
+    kubernetes.io/enforce-mountable-secrets: "true"
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-assistant-role
+  namespace: ai-assistant
+  labels:
+    app.kubernetes.io/name: ai-assistant
+    app.kubernetes.io/component: rbac
+    app: ai-assistant
+rules:
+  # ConfigMap access - read only
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+  # Secrets access - read only
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    resourceNames: ["ai-assistant-secret"]
+
+  # Pod access - read only
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+
+  # Service access - read only
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+
+  # Events - create and list
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "list", "watch"]
+
+  # PersistentVolumeClaims - read only
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list"]
+
+  # HorizontalPodAutoscaler - read and update
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-assistant-binding
+  namespace: ai-assistant
+  labels:
+    app.kubernetes.io/name: ai-assistant
+    app.kubernetes.io/component: rbac
+    app: ai-assistant
+subjects:
+  - kind: ServiceAccount
+    name: ai-assistant-sa
+    namespace: ai-assistant
+roleRef:
+  kind: Role
+  name: ai-assistant-role
+  apiGroup: rbac.authorization.k8s.io

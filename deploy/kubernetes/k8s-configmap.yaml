@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-assistant-config
+  namespace: ai-assistant
+  labels:
+    app.kubernetes.io/name: ai-assistant
+    app.kubernetes.io/component: backend
+    app: ai-assistant
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8000"
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "ai_assistant"
+  DATABASE_SSL_MODE: "require"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  CACHE_TTL: "3600"
+  MODEL_PROVIDER: "ollama"
+  OLLAMA_HOST: "http://ollama-service:11434"
+  MAX_CONCURRENT_REQUESTS: "100"
+  REQUEST_TIMEOUT: "300"
+  ENABLE_RATE_LIMITING: "true"
+  RATE_LIMIT_PER_MINUTE: "60"
+
+  config.yaml: |
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+      cors:
+        enabled: true
+        origins:
+          - "https://ai.example.com"
+          - "https://app.example.com"
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        allow_credentials: true
+
+    logging:
+      level: info
+      format: json
+      output: stdout
+
+    database:
+      host: ${DATABASE_HOST}
+      port: ${DATABASE_PORT}
+      name: ${DATABASE_NAME}
+      ssl_mode: ${DATABASE_SSL_MODE}
+      pool:
+        min_size: 5
+        max_size: 20
+        idle_timeout: 300
+
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      db: 0
+      ttl: ${CACHE_TTL}
+
+    llm:
+      provider: ${MODEL_PROVIDER}
+      ollama:
+        host: ${OLLAMA_HOST}
+        default_model: llama3.1
+        timeout: 300
+        max_retries: 3
+
+    auth:
+      enabled: true
+      jwt_secret: ${JWT_SECRET}
+      token_expiry: 86400
+      refresh_expiry: 604800
+
+    rate_limiting:
+      enabled: ${ENABLE_RATE_LIMITING}
+      requests_per_minute: ${RATE_LIMIT_PER_MINUTE}
+      burst: 10
+
+  models.yaml: |
+    models:
+      - name: llama3.1
+        provider: ollama
+        description: "Meta Llama 3.1 70B"
+        context_window: 131072
+        max_output_tokens: 4096
+        parameters:
+          temperature: 0.7
+          top_p: 0.9
+          top_k: 40
+
+      - name: mistral
+        provider: ollama
+        description: "Mistral 7B"
+        context_window: 32768
+        max_output_tokens: 4096
+        parameters:
+          temperature: 0.7
+          top_p: 0.9
+
+      - name: codellama
+        provider: ollama
+        description: "Code Llama 34B"
+        context_window: 16384
+        max_output_tokens: 8192
+        parameters:
+          temperature: 0.2
+          top_p: 0.95
+
+    defaults:
+      model: llama3.1
+      system_prompt: |
+        You are an AI assistant running on openSUSE Leap 16.
+        Be helpful, accurate, and concise.

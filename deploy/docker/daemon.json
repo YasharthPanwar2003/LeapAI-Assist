@@ -1,0 +1,41 @@
+{
+    "storage-driver": "btrfs",
+
+    "dns": ["8.8.8.8", "8.8.4.4"],
+    "dns-search": [],
+
+    "iptables": true,
+    "ip6tables": true,
+    "ip-forward": true,
+    "userland-proxy": false,
+
+    "log-driver": "json-file",
+    "log-opts": {
+        "max-size": "10m",
+        "max-file": "3",
+        "compress": "true"
+    },
+
+    "live-restore": true,
+    "no-new-privileges": true,
+
+    "default-ulimits": {
+        "nofile": {
+            "Name": "nofile",
+            "Hard": 65536,
+            "Soft": 65536
+        },
+        "nproc": {
+            "Name": "nproc",
+            "Hard": 4096,
+            "Soft": 2048
+        }
+    },
+
+    "registry-mirrors": [],
+
+    "insecure-registries": [],
+
+    "debug": false,
+    "experimental": false
+}

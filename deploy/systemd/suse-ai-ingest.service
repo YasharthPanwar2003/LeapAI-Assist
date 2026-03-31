@@ -1,0 +1,103 @@
+# =============================================================================
+# suse-ai-ingest.service — Oneshot service for document ingestion/re-indexing
+# =============================================================================
+# Runs the RAG document ingestion pipeline as a one-shot task.
+# Triggered by suse-ai-ingest.timer at 03:00 daily.
+# Can also be run manually: systemctl --user start suse-ai-ingest
+#
+# === USER SESSION INSTALL ===
+#   cp suse-ai-ingest.service ~/.config/systemd/user/
+#   cp suse-ai-ingest.timer   ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now suse-ai-ingest.timer
+#
+# === SYSTEM INSTALL ===
+#   sudo cp suse-ai-ingest.service /etc/systemd/system/
+#   sudo cp suse-ai-ingest.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai-ingest.timer
+#
+# === RUN MANUALLY ===
+#   systemctl --user start suse-ai-ingest
+#   journalctl --user -u suse-ai-ingest -f
+#
+# === CHECK LAST RUN ===
+#   systemctl --user status suse-ai-ingest
+#   journalctl --user -u suse-ai-ingest --since "today"
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Document Ingestion and Re-indexing
+Documentation=https://github.com/suse/suse-ai
+
+# Start after network is available (may need to pull models/download docs)
+After=network-online.target
+Wants=network-online.target
+
+# Optionally ensure the main AI service is running before ingestion
+# Uncomment if you need the LLM for embedding during ingestion:
+# After=suse-ai.service
+# Requires=suse-ai.service
+
+[Service]
+# CRITICAL: Type=oneshot — this task runs, completes, and exits
+# It does NOT stay running. The timer handles periodic scheduling.
+Type=oneshot
+
+# Do NOT set User= in --user session units
+# Do NOT reference podman.service (Podman is daemonless)
+
+# Environment
+Environment=PODMAN_USERNS=keep-id
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=HOME=%h
+Environment=INGEST_MODE=full
+Environment=LOG_LEVEL=info
+
+# Working directory
+WorkingDirectory=/opt/suse-ai
+
+# Run the ingestion command inside the container
+ExecStart=/usr/bin/podman run \
+    --rm \
+    --name suse-ai-ingest \
+    --userns=keep-id \
+    -v /var/lib/suse-ai:/data:rw,z \
+    -v /var/lib/suse-ai/documents:/documents:ro,z \
+    -v /var/lib/suse-ai/models:/models:ro,z \
+    -e PODMAN_USERNS=keep-id \
+    -e INGEST_MODE=${INGEST_MODE} \
+    -e LOG_LEVEL=${LOG_LEVEL} \
+    --memory=4g \
+    --cpus=2 \
+    --log-driver=journald \
+    localhost/suse-ai:latest \
+    python -m suse_ai.ingest --mode ${INGEST_MODE} --source /documents --target /data
+
+# Clean up the ingestion container after completion
+ExecStopPost=/usr/bin/podman rm -f suse-ai-ingest 2>/dev/null || true
+
+# Timeout — ingestion can take a while for large document sets
+# 30 minutes for full re-index of thousands of documents
+TimeoutStartSec=1800
+
+# Resource limits
+MemoryMax=4G
+CPUQuota=200%
+LimitNOFILE=65536
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/suse-ai
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=suse-ai-ingest
+
+[Install]
+# oneshot services: the timer handles scheduling
+# WantedBy is informational here
+WantedBy=default.target

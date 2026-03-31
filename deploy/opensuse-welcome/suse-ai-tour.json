@@ -1,0 +1,12 @@
+{
+  "pages": [
+    {
+      "title": "🦎 SUSE AI Assistant",
+      "body": "## Your Local AI-Powered System Assistant\n\nopenSUSE now includes an optional AI assistant that runs **locally** on your machine — no cloud, no data leaves your computer.\n\n**What it can do:**\n• Answer questions about openSUSE system administration\n• Explain commands and configuration files\n• Help troubleshoot issues using official documentation\n• Guide you through your first steps on openSUSE\n\n**Requirements:** Podman + 4 GB RAM\n**First connection starts the service automatically.**\n\nWould you like to enable the AI Assistant now?",
+      "button": {
+        "label": "Enable AI Assistant",
+        "action": "/usr/bin/suse-ai-welcome-setup"
+      }
+    }
+  ]
+}

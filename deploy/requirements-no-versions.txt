@@ -1,0 +1,62 @@
+# ============================================================
+# openSUSE AI Assistant - requirements.txt (LATEST VERSIONS)
+# Platform: openSUSE Leap 16 | Python 3.13+
+# Install: uv pip install -r requirements-no-versions.txt
+# Verify: uv pip list
+# ============================================================
+# No version pins — always installs the latest stable release.
+# Use this if you want cutting-edge updates.
+# ============================================================
+
+# === Core Application ===
+textual
+pyyaml
+rich
+typer
+
+# === HTTP Clients ===
+aiohttp
+httpx
+requests
+
+# === LLM Integration ===
+unclecode-litellm
+openai
+tiktoken
+
+# === RAG Backends ===
+qdrant-client
+chromadb
+
+# === Embeddings (Vector RAG only) ===
+sentence-transformers
+
+# === Ingestion Pipeline ===
+crawl4ai
+feedparser
+html2text
+beautifulsoup4
+lxml
+
+# === Data Validation ===
+pydantic
+pydantic-settings
+
+# === Code Parsing ===
+tree-sitter
+
+# === Configuration ===
+python-dotenv
+
+# === Kubernetes (optional, for Rancher/K8s deployment) ===
+kubernetes
+
+# === Testing ===
+pytest
+pytest-asyncio
+pytest-cov
+
+# === Code Quality ===
+ruff
+mypy
+pre-commit

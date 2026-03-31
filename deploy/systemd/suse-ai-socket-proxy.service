@@ -1,0 +1,93 @@
+# =============================================================================
+# suse-ai-socket-proxy.service — Socket-activated proxy for lazy startup
+# =============================================================================
+# This service works with suse-ai.socket to provide socket activation:
+#   1. systemd listens on port 8090 (via suse-ai.socket)
+#   2. First client connects → systemd starts this service
+#   3. This service starts the main container and proxies connections
+#   4. Container is ready → connections flow through
+#   5. When idle, socket stays open but container stops (saves ~200MB RAM)
+#
+# === INSTALL (USER SESSION) ===
+#   cp suse-ai.socket ~/.config/systemd/user/
+#   cp suse-ai.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now suse-ai.socket
+#
+# === INSTALL (SYSTEM) ===
+#   sudo cp suse-ai.socket /etc/systemd/system/
+#   sudo cp suse-ai.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai.socket
+#
+# === WITHOUT SOCKET ACTIVATION (always-on) ===
+#   systemctl [user] enable --now suse-ai.service
+#   (do NOT enable suse-ai.socket — it will conflict with port binding)
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Assistant - Socket Activated Startup
+Documentation=https://github.com/suse/suse-ai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+Environment=PODMAN_USERNS=keep-id
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=HOME=%h
+
+WorkingDirectory=/opt/suse-ai
+
+# Start the container when the socket receives a connection
+# systemd passes the socket fd as $LISTEN_FDS (usually fd 3)
+ExecStart=/usr/bin/podman run \
+    --rm \
+    --name suse-ai \
+    --userns=keep-id \
+    --hostname suse-ai \
+    -p 8090:8090 \
+    -v /var/lib/suse-ai:/data:rw,z \
+    -v /var/lib/suse-ai/config:/app/config:ro,z \
+    -v /var/lib/suse-ai/models:/models:ro,z \
+    -e PODMAN_USERNS=keep-id \
+    -e LLM_BASE_URL=http://llm:11434 \
+    -e EMBED_BASE_URL=http://embed:11435 \
+    -e LOG_LEVEL=info \
+    --healthcheck-command "curl -sf http://localhost:8090/health || exit 1" \
+    --healthcheck-interval 30s \
+    --healthcheck-timeout 10s \
+    --healthcheck-start-period 60s \
+    --healthcheck-retries 3 \
+    --memory=3g \
+    --cpus=2 \
+    --security-opt no-new-privileges:true \
+    --log-driver=journald \
+    localhost/suse-ai:latest
+
+ExecStop=/usr/bin/podman stop --time=30 suse-ai
+ExecStopPost=/usr/bin/podman rm -f suse-ai 2>/dev/null || true
+
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+MemoryMax=4G
+CPUQuota=200%
+
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/suse-ai /opt/suse-ai
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=suse-ai
+
+[Install]
+WantedBy=default.target

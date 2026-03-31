@@ -1,0 +1,255 @@
+# Helm Values for SUSE AI Assistant
+# Usage: helm install ai-assistant ./chart -f helm-values.yaml -n ai-assistant
+
+# -- Global settings
+global:
+  imageRegistry: "registry.suse.com"
+  imagePullSecrets: []
+  namespace: ai-assistant
+  environment: production
+
+# -- Deployment settings
+replicaCount: 3
+
+image:
+  repository: ai-assistant
+  tag: "1.0.0"
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# -- Container settings
+container:
+  port: 8000
+  metricsPort: 8080
+
+# -- Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# -- Resource limits and requests
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# -- Liveness probe
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# -- Readiness probe
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+# -- Startup probe
+startupProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 30
+
+# -- Deployment strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# -- Service settings
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+
+# -- External service (NodePort)
+externalService:
+  enabled: true
+  type: NodePort
+  port: 80
+  targetPort: 8000
+  nodePort: 30080
+
+# -- Ingress settings
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+  hosts:
+    - host: ai.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ai-assistant-tls
+      hosts:
+        - ai.example.com
+
+# -- ConfigMap settings
+config:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8000"
+  DATABASE_HOST: "postgres-service"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "ai_assistant"
+  DATABASE_SSL_MODE: "require"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  CACHE_TTL: "3600"
+  MODEL_PROVIDER: "ollama"
+  OLLAMA_HOST: "http://ollama-service:11434"
+  MAX_CONCURRENT_REQUESTS: "100"
+  REQUEST_TIMEOUT: "300"
+  ENABLE_RATE_LIMITING: "true"
+  RATE_LIMIT_PER_MINUTE: "60"
+
+# -- Secret references (actual secrets managed externally)
+secrets:
+  create: true
+  existingSecret: ""
+  keys:
+    databasePassword: DATABASE_PASSWORD
+    apiKey: API_KEY
+
+# -- Persistent Volume Claim
+persistence:
+  enabled: true
+  name: ai-assistant-data
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClassName: local-path
+  annotations: {}
+
+# -- RBAC settings
+serviceAccount:
+  create: true
+  name: ai-assistant-sa
+  automountToken: true
+  annotations: {}
+
+rbac:
+  create: true
+  role:
+    rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "list"]
+        resourceNames: ["ai-assistant-secret"]
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["get", "list"]
+      - apiGroups: [""]
+        resources: ["services"]
+        verbs: ["get", "list"]
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["create", "list", "watch"]
+
+# -- Pod anti-affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app: ai-assistant
+          topologyKey: kubernetes.io/hostname
+
+# -- Topology spread constraints
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: ai-assistant
+
+# -- Node selector
+nodeSelector: {}
+# nodeSelector:
+#   kubernetes.io/os: linux
+#   node-role.kubernetes.io/worker: ""
+
+# -- Tolerations
+tolerations: []
+# tolerations:
+#   - key: "dedicated"
+#     operator: "Equal"
+#     value: "ai-workload"
+#     effect: "NoSchedule"
+
+# -- Extra volume mounts
+extraVolumeMounts: []
+extraVolumes: []
+
+# -- Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# -- Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 2
+  # maxUnavailable: 1
+
+# -- Pod labels and annotations
+podLabels: {}
+podAnnotations: {}
+
+# -- Service monitor for Prometheus
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
+  port: metrics
+  labels: {}

@@ -1,0 +1,68 @@
+# =============================================================================
+# SUSE AI Assistant — systemd service unit (Docker Compose based)
+# Runs the AI assistant stack via `docker compose up`.
+#
+# Install:
+#   sudo cp suse-ai-docker.service /etc/systemd/system/
+#   sudo cp suse-ai-docker.socket /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now suse-ai-docker.socket
+#
+# Verify:
+#   sudo systemctl status suse-ai-docker.service
+#   sudo journalctl -u suse-ai-docker.service -f
+#
+# Restart after changes:
+#   sudo systemctl restart suse-ai-docker.service
+# =============================================================================
+
+[Unit]
+Description=SUSE AI Assistant (Docker Compose)
+Documentation=https://github.com/SUSE/suse-ai-deploy
+After=docker.service network-online.target
+Requires=docker.service network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+
+# Working directory must contain docker-compose.yml
+WorkingDirectory=/opt/suse-ai-deploy/deploy/docker
+
+# Environment file for secrets and configuration
+EnvironmentFile=-/etc/suse-ai/env
+Environment=COMPOSE_PROJECT_NAME=suse-ai
+Environment=DOCKER_COMPOSE=/usr/bin/docker
+
+# Start the full stack
+ExecStartPre=/usr/bin/docker compose pull --quiet
+ExecStart=/usr/bin/docker compose up --abort-on-container-exit --no-color
+
+# Graceful shutdown (SIGTERM → docker compose stop)
+ExecStop=/usr/bin/docker compose down --timeout 30 --remove-orphans
+
+# Reload: recreate changed containers without downtime
+ExecReload=/usr/bin/docker compose up --no-deps --build --force-recreate app
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/suse-ai-deploy
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+TimeoutStartSec=300
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
+Also=suse-ai-docker.socket
