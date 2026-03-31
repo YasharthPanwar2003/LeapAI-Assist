@@ -35,19 +35,19 @@
 7. [Deployment Options](#deployment-options)
 8. [Development](#development)
 9. [Troubleshooting](#troubleshooting)
-10. [GSoC 2026 Proposal](#gsoc-2026-proposal)
+
 
 ---
 
 ## 🏗️ System Architecture
 
-### Seven-Layer Architecture [[PDF Section 1]]
+### Seven-Layer Architecture 
 
 ```
 
 ```
 
-### Model Zoo (March 2026) [[PDF Section 2]]
+### Model Zoo (March 2026) 
 
 | Component | Model | Size | RAM | Purpose |
 |-----------|-------|------|-----|---------|
