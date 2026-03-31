@@ -1,11 +1,7 @@
 # =============================================================================
 # suse-ai.socket — systemd socket unit for SUSE AI application
-# =============================================================================
 # Install: cp suse-ai.socket ~/.config/systemd/user/
 # Enable:  systemctl --user enable --now suse-ai.socket
-#
-# Socket activation allows systemd to start the service on first connection.
-# Runs as a user session unit — no root required.
 # =============================================================================
 
 [Unit]
@@ -13,21 +9,13 @@ Description=SUSE AI Application Socket (port 8090)
 Documentation=https://github.com/suse/suse-ai
 
 [Socket]
-# Listen on TCP port 8090
 ListenStream=8090
-
-# Accept connections (use Accept=yes for socket-per-connection,
-# Accept=no to pass the socket fd to the service)
 Accept=no
-
-# Socket options
 NoDelay=true
 KeepAlive=true
 KeepAliveTimeSec=30
 KeepAliveIntervalSec=5
 KeepAliveProbes=3
-
-# Backlog for pending connections
 Backlog=128
 
 [Install]

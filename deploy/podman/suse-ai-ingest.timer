@@ -1,35 +1,18 @@
 # =============================================================================
-# suse-ai-ingest.timer — systemd timer for nightly document re-indexing
-# =============================================================================
+# suse-ai-ingest.timer — nightly timer for document re-indexing
 # Install: cp suse-ai-ingest.timer ~/.config/systemd/user/
 # Enable:  systemctl --user enable --now suse-ai-ingest.timer
-# Status:  systemctl --user list-timers --all
-# Logs:    journalctl --user -u suse-ai-ingest
-#
-# Triggers suse-ai-ingest.service at 03:00 daily.
-# Persistent=true ensures missed runs (e.g., system was off) are caught up.
 # =============================================================================
 
 [Unit]
 Description=SUSE AI Nightly Document Ingestion Timer
 Documentation=https://github.com/suse/suse-ai
-
-# Run after network is available (for pulling models if needed)
 After=network-online.target
 
 [Timer]
-# Run daily at 03:00 AM
 OnCalendar=*-*-* 03:00:00
-
-# Catch up missed timer events (e.g., if system was powered off at 03:00)
-# The service will run once at next boot if a scheduled run was missed
 Persistent=true
-
-# Randomize start time by up to 5 minutes to avoid thundering herd
-# Useful when multiple instances are running on different machines
 RandomizedDelaySec=300
-
-# Wait 1 minute after boot before running (if catching up)
 AccuracySec=1m
 
 [Install]

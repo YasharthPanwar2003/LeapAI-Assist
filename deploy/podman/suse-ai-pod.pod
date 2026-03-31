@@ -1,32 +1,14 @@
 # =============================================================================
 # suse-ai-pod.pod — Quadlet pod definition for Podman 5.x
-# =============================================================================
 # Install: cp suse-ai-pod.pod ~/.config/containers/systemd/
 # Reload:  systemctl --user daemon-reload
 # Start:   systemctl --user enable --now suse-ai-pod
-# Status:  systemctl --user status suse-ai-pod
-# Inspect: podman pod inspect suse-ai-pod
-#
-# Pod definition creates a Kubernetes-compatible pod that shares:
-#   - Network namespace (containers communicate via localhost)
-#   - IPC namespace
-#   - UTS namespace (hostname)
-#
-# Containers reference this pod via Pod=suse-ai-pod in their .container files.
 # =============================================================================
 
 [Pod]
-# Port mapping — exposed on the pod's shared network namespace
 PublishPort=8090:8090
-
-# Optional: map additional ports for services in this pod
-# PublishPort=11434:11434  # LLM service
-
-# Pod name (derived from filename if not specified)
-# Name=suse-ai-pod
-
-# Hostname for the pod
 HostName=suse-ai-pod
+# PublishPort=11434:11434  # Uncomment to expose Ollama API externally
 
 [Install]
 WantedBy=default.target

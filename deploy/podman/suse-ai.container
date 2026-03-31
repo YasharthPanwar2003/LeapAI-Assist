@@ -1,76 +1,47 @@
 # =============================================================================
 # suse-ai.container — Quadlet container definition for Podman 5.x
-# =============================================================================
 # Install: cp suse-ai.container ~/.config/containers/systemd/
-#         cp suse-ai-pod.pod ~/.config/containers/systemd/
-# Reload: systemctl --user daemon-reload
-# Start:  systemctl --user enable --now suse-ai-pod suse-ai
-# Status: systemctl --user status suse-ai
-# Logs:   journalctl --user -u suse-ai -f
+#          cp suse-ai-pod.pod   ~/.config/containers/systemd/
+# Reload:  systemctl --user daemon-reload
+# Start:   systemctl --user enable --now suse-ai-pod suse-ai
+# Logs:    journalctl --user -u suse-ai -f
 #
-# Quadlet is the recommended approach for Podman 5.x on Leap 16.
-# The .container file is auto-converted to a systemd service unit.
-#
-# NOTE: Podman is daemonless. Quadlet generates Type=simple services.
-#       No podman.service reference is needed or valid.
+# 2026 FIXES:
+#   - Cgroupsmode=no-conmon  REQUIRED when joining a pod (prevents cgroup conflict)
+#   - UserNS=keep-id         Required for rootless volume ownership
+#   - HealthCmd port fixed to 8090 (was wrong 8080 in original)
+#   - Do NOT create suse-ai.service alongside this file — Quadlet auto-generates
+#     it. Having both causes a unit name collision.
 # =============================================================================
 
 [Container]
-# Container image to run (local or registry)
 Image=localhost/suse-ai:latest
-
-# Pod to join — creates shared network namespace with other containers in the pod
 Pod=suse-ai-pod
-
-# Port mapping — published on the pod's network namespace
-PublishPort=8090:8090
-
-# Volume mounts (host:container:options)
-# :z = shared SELinux label (multiple containers can access)
-# :rw = read-write
 Volume=/var/lib/suse-ai:/data:rw,z
-
-# Environment variables
 Environment=PODMAN_USERNS=keep-id
 Environment=LLM_BASE_URL=http://llm:11434
 Environment=EMBED_BASE_URL=http://embed:11435
+Environment=APP_PORT=8090
 Environment=LOG_LEVEL=info
-
-# Auto-update policy — pull new image from registry on restart
+UserNS=keep-id
+Cgroupsmode=no-conmon
 AutoUpdate=registry
-
-# Health check configuration
-HealthCmd=curl -sf http://localhost:8080/v1/models || exit 1
+HealthCmd=curl -sf http://localhost:8090/health || exit 1
 HealthInterval=30s
 HealthTimeout=10s
 HealthStartPeriod=60s
 HealthRetries=3
-
-# Container labels
 Label=io.podman.version=5.4.2
 Label=io.opensuse.leap=16
 Label=app=suse-ai
-Label=maintainer=suse-ai-team
-
-# Security options
-SecurityLabelDisable=false
 NoNewPrivileges=true
-
-# DNS settings
-DNS=1.1.1.1,8.8.8.8
-
-# Logging driver
+SecurityLabelDisable=false
 LogDriver=journald
 
 [Service]
-# Restart policy
 Restart=on-failure
 RestartSec=10
-
-# Resource limits
 MemoryMax=3G
-
-# Timeout for graceful stop
 TimeoutStopSec=30
 
 [Install]

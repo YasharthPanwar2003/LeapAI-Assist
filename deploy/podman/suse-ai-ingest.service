@@ -1,15 +1,11 @@
 # =============================================================================
-# suse-ai-ingest.service — Oneshot service for nightly re-indexing
-# =============================================================================
+# suse-ai-ingest.service — Oneshot systemd service for document re-indexing
 # Install: cp suse-ai-ingest.service ~/.config/systemd/user/
-#         cp suse-ai-ingest.timer ~/.config/systemd/user/
+#          cp suse-ai-ingest.timer   ~/.config/systemd/user/
 # Reload:  systemctl --user daemon-reload
 # Enable:  systemctl --user enable --now suse-ai-ingest.timer
 # Run now: systemctl --user start suse-ai-ingest
 # Logs:    journalctl --user -u suse-ai-ingest
-#
-# This service runs the document ingestion/re-indexing pipeline.
-# It is triggered by suse-ai-ingest.timer at 03:00 daily.
 # =============================================================================
 
 [Unit]
@@ -17,21 +13,12 @@ Description=SUSE AI Document Ingestion and Re-indexing
 Documentation=https://github.com/suse/suse-ai
 After=network-online.target
 
-# This service is a oneshot — it runs, completes, and exits.
-# It does NOT stay running. The timer triggers it periodically.
-
 [Service]
-# CRITICAL: Type=oneshot for a task that runs and completes
 Type=oneshot
-
-# Do NOT set User= — user session unit runs as invoking user
-# Do NOT reference podman.service — Podman is daemonless
-
 Environment=PODMAN_USERNS=keep-id
 Environment=PODMAN_HOME=%h
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 
-# Run the ingestion command inside the container
 ExecStart=/usr/bin/podman run \
     --rm \
     --name suse-ai-ingest \
@@ -46,22 +33,14 @@ ExecStart=/usr/bin/podman run \
     localhost/suse-ai:latest \
     python -m suse_ai.ingest --mode full --source /documents --target /data
 
-# Clean up the ingestion container
 ExecStopPost=/usr/bin/podman rm suse-ai-ingest 2>/dev/null || true
 
-# Timeout — ingestion can take a while for large document sets
 TimeoutStartSec=1800
-
-# Resource limits
 MemoryMax=4G
 CPUQuota=200%
-
-# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=suse-ai-ingest
 
 [Install]
-# oneshot services: WantedBy is not typically used for the service itself.
-# The timer unit handles activation.
 WantedBy=default.target

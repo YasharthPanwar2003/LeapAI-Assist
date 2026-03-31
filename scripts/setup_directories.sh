@@ -12,66 +12,83 @@ log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# ─── Configuration ───
 BASE_DIR="/var/lib/suse-ai"
-MODEL_DIR="${BASE_DIR}/models"
-INDEX_DIR="${BASE_DIR}/index"
-CACHE_DIR="${BASE_DIR}/cache/docs"
-STATE_DIR="${BASE_DIR}/state"
-LOG_DIR="${BASE_DIR}/logs"
-
 CURRENT_USER="${SUDO_USER:-$USER}"
 CURRENT_GROUP="$(id -gn "${CURRENT_USER}" 2>/dev/null || echo root)"
 
-# ─── Create Directories ───
 log_info "Creating application directories under ${BASE_DIR}..."
-sudo mkdir -p "${MODEL_DIR}" "${INDEX_DIR}" "${CACHE_DIR}" "${STATE_DIR}" "${LOG_DIR}"
+mkdir -p \
+    "${BASE_DIR}/models" \
+    "${BASE_DIR}/index" \
+    "${BASE_DIR}/cache/docs" \
+    "${BASE_DIR}/state" \
+    "${BASE_DIR}/logs" \
+    "${BASE_DIR}/documents"
 
-# ─── Set Ownership ───
 log_info "Setting ownership to ${CURRENT_USER}:${CURRENT_GROUP}..."
-sudo chown -R "${CURRENT_USER}:${CURRENT_GROUP}" "${BASE_DIR}"
+chown -R "${CURRENT_USER}:${CURRENT_GROUP}" "${BASE_DIR}"
 
-# ─── Set Permissions ───
-sudo chmod 755 "${BASE_DIR}"
-sudo chmod 700 "${STATE_DIR}"
-sudo chmod 755 "${MODEL_DIR}" "${INDEX_DIR}" "${CACHE_DIR}" "${LOG_DIR}"
+chmod 755 "${BASE_DIR}"
+chmod 700 "${BASE_DIR}/state"
+chmod 755 "${BASE_DIR}/models" \
+           "${BASE_DIR}/index" \
+           "${BASE_DIR}/cache/docs" \
+           "${BASE_DIR}/logs" \
+           "${BASE_DIR}/documents"
 
-# ─── Verify Python 3.13 ───
+# Verify Python 3.13
 if command -v python3.13 &>/dev/null; then
-    PYTHON_VERSION=$(python3.13 --version 2>&1)
-    log_info "Python found: ${PYTHON_VERSION}"
+    log_info "Python: $(python3.13 --version 2>&1)"
 else
-    log_warn "python3.13 not found. Install with: sudo zypper install -y python313"
+    log_warn "python3.13 not found. Install: sudo zypper install -y python313"
 fi
 
-# ─── Verify uv ───
+# Verify uv
 if command -v uv &>/dev/null; then
-    UV_VERSION=$(uv --version 2>&1 | head -1)
-    log_info "uv found: ${UV_VERSION}"
+    log_info "uv: $(uv --version 2>&1 | head -1)"
 else
-    log_warn "uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    log_warn "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
-# ─── Verify Container Engine ───
+# Verify hf CLI (replaces deprecated huggingface-cli)
+if command -v hf &>/dev/null; then
+    log_info "hf CLI: $(hf version 2>/dev/null | head -1 || echo 'available')"
+else
+    log_warn "'hf' CLI not found. Install: uv pip install 'huggingface_hub[cli]>=1.8.0'"
+fi
+
+# Verify container engine
 if command -v podman &>/dev/null; then
-    PODMAN_VERSION=$(podman --version 2>&1)
-    log_info "Podman found: ${PODMAN_VERSION}"
+    log_info "Podman: $(podman --version 2>&1)"
 elif command -v docker &>/dev/null; then
-    DOCKER_VERSION=$(docker --version 2>&1)
-    log_info "Docker found: ${DOCKER_VERSION}"
+    log_info "Docker: $(docker --version 2>&1)"
 else
     log_warn "No container engine found. Install Podman: sudo zypper install -y podman"
 fi
 
-# ─── Summary ───
+# Verify rootless stack
+for pkg in crun slirp4netns fuse-overlayfs; do
+    if rpm -q "${pkg}" &>/dev/null; then
+        log_info "${pkg}: $(rpm -q --queryformat '%{VERSION}' "${pkg}")"
+    else
+        log_warn "${pkg} not installed — required for rootless containers"
+        log_warn "  Install: sudo zypper install -y ${pkg}"
+    fi
+done
+
 echo ""
 log_info "Directory structure:"
 echo "  ${BASE_DIR}/"
 echo "  ├── models/      (LLM GGUF models)"
 echo "  ├── index/       (RAG vector indices)"
 echo "  ├── cache/docs/  (Crawled document cache)"
+echo "  ├── documents/   (Source documents for ingestion)"
 echo "  ├── state/       (Config and runtime state)"
 echo "  └── logs/        (Application logs)"
 echo ""
 log_info "Ownership: ${CURRENT_USER}:${CURRENT_GROUP}"
-log_info "Done. Run './scripts/download_models.sh' to fetch LLM models."
+echo ""
+log_info "Next steps:"
+echo "  1. Login to HF Hub: hf auth login"
+echo "  2. Download models: ./scripts/download_models.sh"
+echo "  3. Build image:     ./scripts/build_podman.sh"

@@ -13,7 +13,7 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-# ─── Defaults ───
+# ─── Defaults ────────────────────────────────────────────────────────────────
 ENGINE="podman"
 IMAGE_NAME="suse-ai"
 IMAGE_TAG="latest"
@@ -22,13 +22,13 @@ PUSH=false
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# ─── Parse Arguments ───
+# ─── Parse Arguments ─────────────────────────────────────────────────────────
 for arg in "$@"; do
     case $arg in
-        --docker) ENGINE="docker" ;;
-        --podman) ENGINE="podman" ;;
-        --no-cache) NO_CACHE="--no-cache" ;;
-        --push) PUSH=true ;;
+        --docker)    ENGINE="docker" ;;
+        --podman)    ENGINE="podman" ;;
+        --no-cache)  NO_CACHE="--no-cache" ;;
+        --push)      PUSH=true ;;
         --help)
             echo "Usage: ./scripts/build_podman.sh [--docker|--podman] [--no-cache] [--push]"
             echo ""
@@ -46,48 +46,49 @@ for arg in "$@"; do
     esac
 done
 
-# ─── Detect Engine ───
+# ─── Detect Engine ───────────────────────────────────────────────────────────
 if [[ "$ENGINE" == "podman" ]]; then
     if ! command -v podman &>/dev/null; then
         log_error "podman not found. Install: sudo zypper install -y podman"
         exit 1
     fi
+    # NOTE: Podman is DAEMONLESS — no need to check for a running daemon.
+    # There is no podman.service or podman.socket to start.
     COMPOSE_CMD="podman compose"
 else
     if ! command -v docker &>/dev/null; then
         log_error "docker not found. Install: sudo zypper install -y docker-ce"
         exit 1
     fi
-    if ! docker info &>/dev/null; then
+    if ! docker info &>/dev/null 2>&1; then
         log_error "Docker daemon not running. Start: sudo systemctl start docker"
         exit 1
     fi
     COMPOSE_CMD="docker compose"
 fi
 
-# ─── Pre-flight Checks ───
+# ─── Pre-flight Checks ───────────────────────────────────────────────────────
 log_step "Pre-flight checks"
 
-# Check Python 3.13
 if command -v python3.13 &>/dev/null; then
     log_info "python3.13 $(python3.13 --version 2>&1 | awk '{print $2}')"
 else
     log_warn "python3.13 not found locally (OK if building inside container)"
 fi
 
-# Check Containerfile exists
 if [[ ! -f "${PROJECT_DIR}/Containerfile" ]]; then
     log_error "Containerfile not found at ${PROJECT_DIR}/Containerfile"
     exit 1
 fi
+log_info "Containerfile: ${PROJECT_DIR}/Containerfile"
 
-# Check requirements.txt exists
 if [[ ! -f "${PROJECT_DIR}/requirements.txt" ]]; then
     log_error "requirements.txt not found at ${PROJECT_DIR}/requirements.txt"
     exit 1
 fi
+log_info "requirements.txt: ${PROJECT_DIR}/requirements.txt"
 
-# ─── Build ───
+# ─── Build ───────────────────────────────────────────────────────────────────
 log_step "Building ${IMAGE_NAME}:${IMAGE_TAG} with ${ENGINE}..."
 log_info "Project directory: ${PROJECT_DIR}"
 
@@ -102,39 +103,41 @@ ${ENGINE} build \
     ${NO_CACHE} \
     .
 
+BUILD_RC=$?
 BUILD_END=$(date +%s)
 BUILD_TIME=$((BUILD_END - BUILD_START))
 
-if [[ $? -eq 0 ]]; then
+if [[ $BUILD_RC -eq 0 ]]; then
     log_info "Build completed in ${BUILD_TIME}s"
 else
     log_error "Build failed after ${BUILD_TIME}s"
     exit 1
 fi
 
-# ─── Verify ───
+# ─── Verify ──────────────────────────────────────────────────────────────────
 log_step "Verifying image..."
 ${ENGINE} images "${IMAGE_NAME}" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"
 
-# ─── Push (optional) ───
+# ─── Push (optional) ─────────────────────────────────────────────────────────
 if [[ "$PUSH" == true ]]; then
     log_step "Pushing ${IMAGE_NAME}:${IMAGE_TAG}..."
     ${ENGINE} push "${IMAGE_NAME}:${IMAGE_TAG}"
 fi
 
-# ─── Summary ───
+# ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 log_info "Build successful!"
 echo ""
+IMAGE_SIZE=$(${ENGINE} image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
+    --format '{{.Size}}' 2>/dev/null || echo 'unknown')
 echo "  Image: ${ENGINE}://${IMAGE_NAME}:${IMAGE_TAG}"
-echo "  Size:  $(${ENGINE} image inspect "${IMAGE_NAME}:${IMAGE_TAG}" --format '{{.Size}}' 2>/dev/null || echo 'unknown')"
+echo "  Size:  ${IMAGE_SIZE}"
 echo ""
 echo "  Run with ${ENGINE}:"
-if [[ "$ENGINE" == "podman" ]]; then
-    echo "    ${COMPOSE_CMD} up -d"
-else
-    echo "    ${COMPOSE_CMD} up -d"
-fi
+echo "    ${COMPOSE_CMD} up -d"
 echo ""
 echo "  Or directly:"
-echo "    ${ENGINE} run -it --rm -p 8080:8080 -v /var/lib/suse-ai/models:/models:ro ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "    ${ENGINE} run -it --rm --userns=keep-id \\"
+echo "      -p 8090:8090 \\"
+echo "      -v /var/lib/suse-ai:/data:rw,z \\"
+echo "      ${IMAGE_NAME}:${IMAGE_TAG}"
