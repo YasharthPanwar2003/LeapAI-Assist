@@ -632,7 +632,7 @@ flowchart TB
     subgraph "M7 Storage"
         S1["/var/lib/suse-ai/<br/>models, index, cache"]
     end
-    
+
     U1 --> O1
     O1 --> R1
     O1 --> R2
@@ -641,12 +641,17 @@ flowchart TB
     O1 --> L1
     O1 --> M1
     M1 --> S1
-    
-    style U1 fill:#99ff99,stroke:#00aa00,stroke-width:3px
-    style O1 fill:#99ff99,stroke:#00aa00,stroke-width:3px
-    style R1 fill:#99ff99,stroke:#00aa00,stroke-width:3px
-    style L1 fill:#99ccff,stroke:#0066cc,stroke-width:2px
-    style M1 fill:#ffcc99,stroke:#cc6600,stroke-width:3px
+
+    %% Styling: black text, white fill, standard borders
+    style U1 fill:#ffffff,stroke:#000000,color:#000000
+    style O1 fill:#ffffff,stroke:#000000,color:#000000
+    style R1 fill:#ffffff,stroke:#000000,color:#000000
+    style R2 fill:#ffffff,stroke:#000000,color:#000000
+    style I1 fill:#ffffff,stroke:#000000,color:#000000
+    style I2 fill:#ffffff,stroke:#000000,color:#000000
+    style L1 fill:#ffffff,stroke:#000000,color:#000000
+    style M1 fill:#ffffff,stroke:#000000,color:#000000
+    style S1 fill:#ffffff,stroke:#000000,color:#000000
 ```
 
 ## Figure 2: Query Lifecycle (8 Steps)
