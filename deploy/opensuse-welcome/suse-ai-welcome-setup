@@ -21,10 +21,9 @@
 # =============================================================================
 
 import os
-import sys
-import subprocess
-import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 # Configuration
@@ -36,6 +35,7 @@ DEPLOY_DIR = Path("/opt/suse-ai-deploy")
 PODMAN = "/usr/bin/podman"
 PYTHON3 = "/usr/bin/python3.13"
 
+
 def check_dependencies():
     """Check if required tools are available."""
     missing = []
@@ -43,6 +43,7 @@ def check_dependencies():
         if not shutil.which(cmd):
             missing.append(name)
     return missing
+
 
 def detect_desktop():
     """Detect which desktop environment is running."""
@@ -57,6 +58,7 @@ def detect_desktop():
     else:
         return "other"
 
+
 def detect_leap_version():
     """Detect openSUSE Leap version from /etc/os-release."""
     os_release = Path("/etc/os-release")
@@ -66,12 +68,14 @@ def detect_leap_version():
                 return line.split("=")[1].strip().replace('"', "")
     return "unknown"
 
+
 def show_gnome_dialog(title, message, yes_label="Install", no_label="Skip"):
     """Show a GTK dialog for GNOME."""
     try:
         result = subprocess.run(
             [
-                "zenity", "--question",
+                "zenity",
+                "--question",
                 f"--title={title}",
                 f"--text={message}",
                 f"--ok-label={yes_label}",
@@ -79,29 +83,35 @@ def show_gnome_dialog(title, message, yes_label="Install", no_label="Skip"):
                 "--width=500",
                 "--height=300",
             ],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         return result.returncode == 0  # 0 = Yes, 1 = No
     except FileNotFoundError:
         # Fallback to terminal prompt
         print(f"\n{title}\n{message}")
-        return input(f"[Y/n] ").strip().lower() != "n"
+        return input("[Y/n] ").strip().lower() != "n"
+
 
 def show_kde_dialog(title, message, yes_label="Install", no_label="Skip"):
     """Show a KDialog for KDE Plasma."""
     try:
         result = subprocess.run(
             [
-                "kdialog", "--yesno", message,
+                "kdialog",
+                "--yesno",
+                message,
                 f"--title={title}",
                 f"--yes-label={yes_label}",
                 f"--no-label={no_label}",
             ],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         return result.returncode == 0
     except FileNotFoundError:
         return show_gnome_dialog(title, message, yes_label, no_label)
+
 
 def show_dialog(title, message, yes_label="Install", no_label="Skip"):
     """Show the appropriate dialog based on desktop environment."""
@@ -111,15 +121,21 @@ def show_dialog(title, message, yes_label="Install", no_label="Skip"):
     else:
         return show_gnome_dialog(title, message, yes_label, no_label)
 
+
 def install_podman():
     """Install Podman via zypper."""
     print("Installing Podman...")
     subprocess.run(["sudo", "zypper", "install", "-y", "podman", "buildah"], check=True)
 
+
 def install_python313():
     """Install Python 3.13 via zypper."""
     print("Installing Python 3.13...")
-    subprocess.run(["sudo", "zypper", "install", "-y", "python313", "python313-pip", "python313-devel"], check=True)
+    subprocess.run(
+        ["sudo", "zypper", "install", "-y", "python313", "python313-pip", "python313-devel"],
+        check=True,
+    )
+
 
 def install_uv():
     """Install uv package manager."""
@@ -128,11 +144,11 @@ def install_uv():
         return
     print("Installing uv...")
     result = subprocess.run(
-        ["curl", "-LsSf", "https://astral.sh/uv/install.sh"],
-        capture_output=True, text=True
+        ["curl", "-LsSf", "https://astral.sh/uv/install.sh"], capture_output=True, text=True
     )
     if result.returncode != 0:
         print("Warning: uv installation may have failed")
+
 
 def create_directories():
     """Create application data directories."""
@@ -148,6 +164,7 @@ def create_directories():
     # Set ownership
     user = os.environ.get("USER", "root")
     subprocess.run(["sudo", "chown", "-R", f"{user}:{user}", "/var/lib/suse-ai"], check=True)
+
 
 def install_systemd_units():
     """Copy and enable systemd user units."""
@@ -189,25 +206,35 @@ def install_systemd_units():
     subprocess.run(["systemctl", "--user", "enable", "suse-ai-ingest.timer"], check=True)
     print("  Enabled: suse-ai-ingest.timer (nightly re-indexing)")
 
+
 def build_container():
     """Build the container image with Podman."""
     containerfile = DEPLOY_DIR / "deploy" / "podman" / "Containerfile"
     if not containerfile.exists():
         containerfile = DEPLOY_DIR / "Containerfile"
     if not containerfile.exists():
-        print(f"Warning: No Containerfile found, skipping build")
+        print("Warning: No Containerfile found, skipping build")
         return
 
     print("Building container image (this may take a few minutes)...")
     result = subprocess.run(
-        ["podman", "build", "-t", "localhost/suse-ai:latest",
-         "-f", str(containerfile), str(DEPLOY_DIR)],
-        capture_output=True, text=True
+        [
+            "podman",
+            "build",
+            "-t",
+            "localhost/suse-ai:latest",
+            "-f",
+            str(containerfile),
+            str(DEPLOY_DIR),
+        ],
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         print(f"Build failed: {result.stderr}")
     else:
         print("Container image built successfully")
+
 
 def mark_completed():
     """Mark the welcome setup as completed."""
@@ -217,6 +244,7 @@ def mark_completed():
     autostart = Path("/etc/xdg/autostart/suse-ai-welcome.desktop")
     if autostart.exists():
         subprocess.run(["sudo", "rm", "-f", str(autostart)], check=False)
+
 
 def show_success():
     """Show success notification."""
@@ -228,14 +256,19 @@ def show_success():
         subprocess.run(["notify-send", "SUSE AI Assistant", msg], check=False)
         # Also try zenity info dialog
         try:
-            subprocess.run([
-                "zenity", "--info",
-                "--title=SUSE AI Assistant",
-                f"--text={msg}",
-                "--width=400",
-            ], check=False)
+            subprocess.run(
+                [
+                    "zenity",
+                    "--info",
+                    "--title=SUSE AI Assistant",
+                    f"--text={msg}",
+                    "--width=400",
+                ],
+                check=False,
+            )
         except FileNotFoundError:
             pass
+
 
 def main():
     """Main entry point."""
@@ -246,7 +279,7 @@ def main():
     if STATE_FILE.exists():
         sys.exit(0)
 
-    print(f"SUSE AI Assistant Setup")
+    print("SUSE AI Assistant Setup")
     print(f"  openSUSE Leap {leap_ver} | Desktop: {desktop}")
 
     # Check dependencies
@@ -300,6 +333,7 @@ def main():
     print("\n✅ SUSE AI Assistant is ready!")
     print("   Open http://localhost:8090 (first connection starts the service)")
     print("   Or run: podman compose -f /opt/suse-ai-deploy/deploy/podman/compose.yaml up -d")
+
 
 if __name__ == "__main__":
     main()

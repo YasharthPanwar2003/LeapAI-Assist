@@ -1,3 +1,10 @@
+---
+# =============================================================================
+# Kubernetes RBAC for AI Assistant
+# =============================================================================
+# Apply: kubectl apply -f k8s-rbac.yaml
+# =============================================================================
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -10,6 +17,7 @@ metadata:
   annotations:
     kubernetes.io/enforce-mountable-secrets: "true"
 automountServiceAccountToken: true
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -25,37 +33,32 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list", "watch"]
-
-  # Secrets access - read only
+  # Secrets access - read only (scoped to specific secret)
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list"]
     resourceNames: ["ai-assistant-secret"]
-
   # Pod access - read only
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
-
   # Service access - read only
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list"]
-
   # Events - create and list
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "list", "watch"]
-
   # PersistentVolumeClaims - read only
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list"]
-
-  # HorizontalPodAutoscaler - read and update
+  # HorizontalPodAutoscaler - read and watch
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch"]
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

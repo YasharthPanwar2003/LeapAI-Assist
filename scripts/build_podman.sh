@@ -1,0 +1,140 @@
+#!/bin/bash
+# =============================================================================
+# openSUSE AI Assistant - Container Build Script
+# Platform: openSUSE Leap 16 | Python 3.13
+# Builds the suse-ai image with Podman or Docker
+# Usage: ./scripts/build_podman.sh [--docker | --podman] [--no-cache] [--push]
+# =============================================================================
+set -euo pipefail
+
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_step()  { echo -e "${BLUE}[STEP]${NC} $1"; }
+
+# ─── Defaults ───
+ENGINE="podman"
+IMAGE_NAME="suse-ai"
+IMAGE_TAG="latest"
+NO_CACHE=""
+PUSH=false
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# ─── Parse Arguments ───
+for arg in "$@"; do
+    case $arg in
+        --docker) ENGINE="docker" ;;
+        --podman) ENGINE="podman" ;;
+        --no-cache) NO_CACHE="--no-cache" ;;
+        --push) PUSH=true ;;
+        --help)
+            echo "Usage: ./scripts/build_podman.sh [--docker|--podman] [--no-cache] [--push]"
+            echo ""
+            echo "Options:"
+            echo "  --docker     Use Docker instead of Podman"
+            echo "  --podman     Use Podman (default)"
+            echo "  --no-cache   Build without cache"
+            echo "  --push       Push image after build"
+            exit 0
+            ;;
+        *)
+            log_error "Unknown argument: $arg"
+            exit 1
+            ;;
+    esac
+done
+
+# ─── Detect Engine ───
+if [[ "$ENGINE" == "podman" ]]; then
+    if ! command -v podman &>/dev/null; then
+        log_error "podman not found. Install: sudo zypper install -y podman"
+        exit 1
+    fi
+    COMPOSE_CMD="podman compose"
+else
+    if ! command -v docker &>/dev/null; then
+        log_error "docker not found. Install: sudo zypper install -y docker-ce"
+        exit 1
+    fi
+    if ! docker info &>/dev/null; then
+        log_error "Docker daemon not running. Start: sudo systemctl start docker"
+        exit 1
+    fi
+    COMPOSE_CMD="docker compose"
+fi
+
+# ─── Pre-flight Checks ───
+log_step "Pre-flight checks"
+
+# Check Python 3.13
+if command -v python3.13 &>/dev/null; then
+    log_info "python3.13 $(python3.13 --version 2>&1 | awk '{print $2}')"
+else
+    log_warn "python3.13 not found locally (OK if building inside container)"
+fi
+
+# Check Containerfile exists
+if [[ ! -f "${PROJECT_DIR}/Containerfile" ]]; then
+    log_error "Containerfile not found at ${PROJECT_DIR}/Containerfile"
+    exit 1
+fi
+
+# Check requirements.txt exists
+if [[ ! -f "${PROJECT_DIR}/requirements.txt" ]]; then
+    log_error "requirements.txt not found at ${PROJECT_DIR}/requirements.txt"
+    exit 1
+fi
+
+# ─── Build ───
+log_step "Building ${IMAGE_NAME}:${IMAGE_TAG} with ${ENGINE}..."
+log_info "Project directory: ${PROJECT_DIR}"
+
+cd "${PROJECT_DIR}"
+
+BUILD_START=$(date +%s)
+
+${ENGINE} build \
+    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+    -t "${IMAGE_NAME}:build-$(date +%Y%m%d)" \
+    -f Containerfile \
+    ${NO_CACHE} \
+    .
+
+BUILD_END=$(date +%s)
+BUILD_TIME=$((BUILD_END - BUILD_START))
+
+if [[ $? -eq 0 ]]; then
+    log_info "Build completed in ${BUILD_TIME}s"
+else
+    log_error "Build failed after ${BUILD_TIME}s"
+    exit 1
+fi
+
+# ─── Verify ───
+log_step "Verifying image..."
+${ENGINE} images "${IMAGE_NAME}" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"
+
+# ─── Push (optional) ───
+if [[ "$PUSH" == true ]]; then
+    log_step "Pushing ${IMAGE_NAME}:${IMAGE_TAG}..."
+    ${ENGINE} push "${IMAGE_NAME}:${IMAGE_TAG}"
+fi
+
+# ─── Summary ───
+echo ""
+log_info "Build successful!"
+echo ""
+echo "  Image: ${ENGINE}://${IMAGE_NAME}:${IMAGE_TAG}"
+echo "  Size:  $(${ENGINE} image inspect "${IMAGE_NAME}:${IMAGE_TAG}" --format '{{.Size}}' 2>/dev/null || echo 'unknown')"
+echo ""
+echo "  Run with ${ENGINE}:"
+if [[ "$ENGINE" == "podman" ]]; then
+    echo "    ${COMPOSE_CMD} up -d"
+else
+    echo "    ${COMPOSE_CMD} up -d"
+fi
+echo ""
+echo "  Or directly:"
+echo "    ${ENGINE} run -it --rm -p 8080:8080 -v /var/lib/suse-ai/models:/models:ro ${IMAGE_NAME}:${IMAGE_TAG}"

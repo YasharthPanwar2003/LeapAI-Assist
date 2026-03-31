@@ -1,9 +1,11 @@
+---
 # =============================================================================
 # SUSE AI — Podman Compose Configuration
 # =============================================================================
-# Usage: podman compose up -d
-#        podman compose logs -f
-#        podman compose down
+# Usage:
+#   podman compose up -d
+#   podman compose logs -f
+#   podman compose down
 #
 # NOTE: Use "podman compose" (built-in to Podman 4.x+).
 #       Do NOT use "docker-compose" or "podman-compose".
@@ -15,8 +17,6 @@ services:
   # ---------------------------------------------------------------------------
   llm:
     image: docker.io/ollama/ollama:latest
-    # No container_name — let Podman generate predictable names
-    # Better compatibility with podman compose scaling
     volumes:
       - llm-models:/root/.ollama:z
     ports:
@@ -47,7 +47,6 @@ services:
     build:
       context: ..
       dockerfile: deploy/podman/Containerfile
-    # No container_name — better podman compose compatibility
     ports:
       - "8090:8090"
     volumes:
@@ -87,9 +86,8 @@ services:
   # ---------------------------------------------------------------------------
   embed:
     image: docker.io/ollama/ollama:latest
-    # No container_name — better podman compose compatibility
     profiles:
-      - embeddings  # Only start with: podman compose --profile embeddings up -d
+      - embeddings
     volumes:
       - embed-models:/root/.ollama:z
     ports:
@@ -97,7 +95,12 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_ORIGINS=*
-    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull nomic-embed-text && wait"]
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - >-
+        ollama serve & sleep 5 &&
+        ollama pull nomic-embed-text && wait
     deploy:
       resources:
         limits:
@@ -115,7 +118,7 @@ services:
     restart: unless-stopped
 
 # =============================================================================
-# Volumes — persistent data storage
+# Volumes
 # =============================================================================
 volumes:
   llm-models:

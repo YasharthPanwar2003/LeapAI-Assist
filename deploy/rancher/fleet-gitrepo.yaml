@@ -1,15 +1,9 @@
+---
 # =============================================================================
 # Fleet GitRepo Resource Example
 # =============================================================================
-# This example Fleet GitRepo deploys workloads from a Git repository to
-# target clusters managed by Rancher.
-#
-# Fleet is Rancher's built-in GitOps continuous delivery tool.
-# It watches Git repos for changes and automatically deploys to matching clusters.
-#
 # Apply: kubectl apply -f fleet-gitrepo.yaml
 # Fleet namespace: fleet-default (default for Fleet resources)
-#
 # Reference: https://fleet.rancher.io/gitrepo-resources/
 # =============================================================================
 
@@ -18,143 +12,53 @@ kind: GitRepo
 metadata:
   name: my-workloads
   namespace: fleet-default
-  # Labels can be used for organizational purposes
   labels:
     app.kubernetes.io/part-of: "fleet-demo"
     environment: "production"
   annotations:
-    # Fleet will reconcile every 5 minutes by default
-    # Override with this annotation:
     fleet.cattle.io/reconcile-rate: "5m"
 spec:
   # -----------------------------------------------------------------------
   # Git Repository Source
   # -----------------------------------------------------------------------
   repo: "https://github.com/myorg/my-k8s-manifests.git"
-
-  # Branch, tag, or commit to deploy
   branch: "main"
-
-  # Specific path(s) within the repo to scan for Kubernetes manifests
-  # Fleet will look in these directories for YAML/JSON files
   paths:
     - "./manifests/base"
     - "./charts"
 
-  # Optionally restrict to specific subdirectories for each path
-  # paths:
-  #   - basePath: "./manifests/base"
-  #     strippedPrefix: "./manifests/base"
-
   # -----------------------------------------------------------------------
-  # Git Authentication (optional)
+  # Git Authentication (optional - uncomment for private repos)
   # -----------------------------------------------------------------------
-  # For private repositories, create a Secret with credentials:
-  #   kubectl create secret generic git-auth \
-  #     --from-file=ssh-privatekey=~/.ssh/id_rsa \
-  #     -n fleet-default
-  #
-  # Then reference it here:
   # clientSecretName: git-auth
-
-  # For HTTPS with token:
-  # clientSecretName: github-token-secret
-  # (Secret should contain: gitcredential=github_pat_XXXXX)
 
   # -----------------------------------------------------------------------
   # Helm Chart Support
   # -----------------------------------------------------------------------
-  # Fleet automatically detects Helm charts and deploys them.
-  # To customize Helm values, specify them per path:
-  helmRepoURL: ""    # Optional: custom Helm repo URL for chart dependencies
-  helmSecretName: "" # Optional: Helm registry credentials
+  helmRepoURL: ""
+  helmSecretName: ""
 
   # -----------------------------------------------------------------------
   # Target Cluster Selection
   # -----------------------------------------------------------------------
-  # Fleet deploys to clusters that match ALL specified selectors.
-  # You can target by labels, names, or cluster groups.
-
-  # Target ALL clusters managed by this Rancher instance
   targets:
     - clusterSelector:
         matchLabels:
           fleet.cattle.io/managed: "true"
 
-  # --- Alternative: Target specific clusters by name ---
-  # targets:
-  #   - clusterName: "my-rke2-cluster"
-  #   - clusterName: "my-k3s-edge-cluster"
-
-  # --- Alternative: Target clusters by custom labels ---
-  # targets:
-  #   - clusterSelector:
-  #       matchLabels:
-  #         environment: production
-  #         region: us-east
-
-  # --- Alternative: Target all clusters in a project ---
-  # targets:
-  #   - clusterSelector:
-  #       matchExpressions:
-  #         - key: "management.cattle.io/project"
-  #           operator: "In"
-  #           values: ["p-xxxxx"]
-
-  # --- Alternative: Target no clusters (dry-run / manual apply) ---
-  # targets:
-  #   - clusterSelector:
-  #       matchLabels:
-  #         do-not-deploy: "true"
-
   # -----------------------------------------------------------------------
   # Sync Options
   # -----------------------------------------------------------------------
-  # How Fleet handles resources that exist on the cluster but not in Git
-  #   - default: Fleet won't delete resources not in Git
-  #   - forceDeleteNamespace: Delete namespaces when removed from Git
-  #   - forceDeleteOnChange: Delete resources when removed from Git
-  #   - createNamespace: Create target namespaces if they don't exist
-  #   - applyOutOfSyncOnly: Only apply resources that are out of sync
   syncOptions:
     - CreateNamespace=true
-    - Prune=true            # Delete resources removed from Git
+    - Prune=true
 
-  # Automatically correct drift (revert manual changes to Fleet-managed resources)
   correctDrift: false
-
-  # -----------------------------------------------------------------------
-  # Resource Policies
-  # -----------------------------------------------------------------------
-  # Control which resources Fleet manages:
-  #   - keep: Fleet won't delete this resource even if removed from Git
-  #   - force: Fleet will always override manual changes
-  #
-  # Resource policies are defined inline with FleetBundles:
-  # See https://fleet.rancher.io/resourcepolicy/
-
-  # -----------------------------------------------------------------------
-  # Polling and Webhooks
-  # -----------------------------------------------------------------------
-  # Fleet polls the Git repo at the reconcile-rate interval.
-  # For immediate sync, configure a webhook:
-  #
-  # POST to: https://rancher.mydomain.com/v1/fleet-gitrepo/<name>
-  # Body: {"event": "push", "repo": "<repo-url>", "branch": "<branch>"}
-  #
-  # GitHub Actions webhook:
-  #   - name: Trigger Fleet
-  #     run: |
-  #       curl -X POST "https://rancher.mydomain.com/v1/fleet-gitrepo/my-workloads" \
-  #         -H "Content-Type: application/json" \
-  #         -d '{"event":"push","repo":"https://github.com/myorg/my-k8s-manifests.git","branch":"main"}'
 
 ---
 # =============================================================================
-# Example: FleetBundles for Multi-Environment Deployment
+# Production Apps GitRepo
 # =============================================================================
-
-# Deploy different resources to different environments
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
 metadata:
@@ -174,6 +78,9 @@ spec:
     - Prune=true
 
 ---
+# =============================================================================
+# Staging Apps GitRepo
+# =============================================================================
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
 metadata:
@@ -190,4 +97,4 @@ spec:
           environment: staging
   syncOptions:
     - CreateNamespace=true
-    - Prune=false    # Don't prune in staging (may have test resources)
+    - Prune=false

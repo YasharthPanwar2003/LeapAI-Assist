@@ -1,3 +1,4 @@
+---
 # =============================================================================
 # SUSE AI Assistant — Docker Compose V2 Configuration
 # openSUSE Leap 16 | 3 services: llm, embed, app
