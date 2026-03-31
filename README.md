@@ -98,7 +98,9 @@ Total Available: 4 GB
 
 ```bash
 # openSUSE Leap 15.6 or 16.0+
+
 sudo zypper install -y podman podman-docker python3 python3-pip git curl
+
 pip3 install huggingface_hub
 ```
 
@@ -106,12 +108,16 @@ pip3 install huggingface_hub
 
 ```bash
 cd ~/Development && \
+
 git clone https://github.com/YOUR_USERNAME/opensuse-ai-assistant.git && \
+
 cd opensuse-ai-assistant && \
+
 sudo ./scripts/setup_directories.sh && \
 ./scripts/download_models.sh && \
 ./scripts/build_podman.sh && \
 ./scripts/test_llm_connectivity.sh
+
 ```
 
 ### Start Service
@@ -146,7 +152,9 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 ```bash
 cd ~/Development
+
 git clone https://github.com/YOUR_USERNAME/opensuse-ai-assistant.git
+
 cd opensuse-ai-assistant
 ```
 
