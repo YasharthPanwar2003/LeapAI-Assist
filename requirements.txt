@@ -1,39 +1,56 @@
-#Core Orchestration
+# === Core Application ===
 textual
 pyyaml
-requests
-aiohttp
+rich
+typer
 
-#RAG Backends
+# === HTTP Clients ===
+aiohttp
+httpx
+requests
+
+# === LLM Integration ===
+unclecode-litellm
+openai
+tiktoken
+
+# === RAG Backends ===
 qdrant-client
 chromadb
 
-#Ingestion Pipeline
+# === Embeddings (Vector RAG only) ===
+sentence-transformers
+
+# === Ingestion Pipeline ===
 crawl4ai
 feedparser
 html2text
+beautifulsoup4
+lxml
 
-#Embeddings (Vector RAG only)
-sentence-transformers
+# === Data Validation ===
+pydantic
+pydantic-settings
 
-#Testing
+# === Code Parsing ===
+tree-sitter
+
+# === Configuration ===
+python-dotenv
+
+# === Kubernetes (optional, for Rancher/K8s deployment) ===
+kubernetes
+
+# === Testing ===
 pytest
 pytest-asyncio
 pytest-cov
 
-#Code Quality
-pre-commit
+# === Code Quality ===
 ruff
 mypy
+pre-commit
 
-#Utilities
-rich
-python-dotenv
-
-pytest
-pytest-asyncio
-
-httpx
 
 # To install all dependencies  ----> uv pip install -r requirements.txt
 
